@@ -44,6 +44,7 @@ dependencies:
   socket_io_client: ^3.1.6
   firebase_core: ^4.11.0
   firebase_messaging: ^16.4.0
+  flutter_callkit_incoming: ^3.1.2
 
 dev_dependencies:
   flutter_test:

@@ -1,22 +1,43 @@
-import 'package:diafon_mobil_app/push_service.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_callkit_incoming/entities/call_event.dart';
+import 'package:flutter_callkit_incoming/entities/call_kit_params.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'api_service.dart';
 import 'socket_service.dart';
 import 'call_screen.dart';
 import 'settings_screen.dart';
-
-import 'package:firebase_core/firebase_core.dart';
+import 'push_service.dart';
+import 'callkit_service.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
+import 'package:flutter_callkit_incoming/entities/entities.dart';
+import 'dart:async';
+// Arka planda/kapalıyken gelen FCM mesajını yakalar
+@pragma('vm:entry-point')
+Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
+  final data = message.data;
+  if (data['type'] == 'incoming_call') {
+    await CallKitService.showIncomingCall(
+      callId: data['callId'] ?? '',
+      callerName: data['callerName'] ?? 'Bilinmeyen',
+      callerUserId: data['callerUserId'] ?? '',
+    );
+  }
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
     await Firebase.initializeApp();
+    FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundHandler);
   } catch (e) {
+    // Firebase başlatılamazsa uygulama yine çalışsın
   }
   runApp(const DiafonApp());
 }
+
 class DiafonApp extends StatelessWidget {
   const DiafonApp({super.key});
 
@@ -34,7 +55,6 @@ class DiafonApp extends StatelessWidget {
   }
 }
 
-// Açılış: kayıtlı giriş var mı kontrol et
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -237,13 +257,97 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _building;
   List<dynamic> _residents = [];
 
+  StreamSubscription? _callkitSub;
+
   @override
   void initState() {
     super.initState();
     _initSocket();
     _loadNearby();
+    _listenCallKit();
+    Future.delayed(const Duration(milliseconds: 800), _checkActiveCall);
   }
 
+  @override
+  void dispose() {
+    _callkitSub?.cancel();
+    super.dispose();
+  }
+
+
+  // Açılışta CallKit'te bekleyen kabul edilmiş çağrı var mı kontrol et
+  Future<void> _checkActiveCall() async {
+    try {
+      final calls = await FlutterCallkitIncoming.activeCalls();
+      if (calls is List && calls.isNotEmpty) {
+        final call = calls[0];
+        // call bir CallKitParams nesnesi veya Map olabilir - ikisini de dene
+        Map<dynamic, dynamic> extra;
+        String callId;
+        if (call is CallKitParams) {
+          extra = call.extra ?? {};
+          callId = (extra['callId'] ?? call.id ?? '').toString();
+        } else if (call is Map) {
+          final dynamic m = call;
+          extra = m['extra'] ?? {};
+          callId = (extra['callId'] ?? m['id'] ?? '').toString();
+        } else {
+          return;
+        }
+        final callerUserId = (extra['callerUserId'] ?? '').toString();
+        final callerName = (extra['callerName'] ?? 'Bilinmeyen').toString();
+        if (callId.isNotEmpty && callerUserId.isNotEmpty && mounted) {
+          await FlutterCallkitIncoming.endCall(callId);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => CallScreen(
+                peerUserId: callerUserId,
+                peerName: callerName,
+                isCaller: false,
+                incomingCallId: callId,
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // sessizce geç
+    }
+  }
+
+
+// CallKit olaylarını dinle (kabul/red)
+  void _listenCallKit() {
+    _callkitSub = FlutterCallkitIncoming.onEvent.listen((event) {
+      if (event == null) return;
+
+      if (event is CallEventActionCallAccept) {
+        final extra = event.callKitParams.extra ?? {};
+        final callId = (extra['callId'] ?? event.callKitParams.id ?? '').toString();
+        final callerUserId = (extra['callerUserId'] ?? '').toString();
+        final callerName = (extra['callerName'] ?? 'Bilinmeyen').toString();
+        FlutterCallkitIncoming.endCall(callId);
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => CallScreen(
+                peerUserId: callerUserId,
+                peerName: callerName,
+                isCaller: false,
+                incomingCallId: callId,
+              ),
+            ),
+          );
+        }
+      } else if (event is CallEventActionCallDecline) {
+        final extra = event.callKitParams.extra ?? {};
+        final callId = (extra['callId'] ?? event.callKitParams.id ?? '').toString();
+        SocketService.emit('call:reject', {'callId': callId});
+      }
+    });
+  }
   Future<void> _initSocket() async {
     await PushService.init();
     await SocketService.connect();

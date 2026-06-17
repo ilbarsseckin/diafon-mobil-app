@@ -198,6 +198,14 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  flutter_callkit_incoming:
+    dependency: "direct main"
+    description:
+      name: flutter_callkit_incoming
+      sha256: "5e49358e4e49b7bfa60c97470873fe68d824e7885dc7c380572e46e524cae373"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.1.2"
   flutter_lints:
     dependency: "direct dev"
     description:
@@ -456,6 +464,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.2"
+  json_annotation:
+    dependency: transitive
+    description:
+      name: json_annotation
+      sha256: "2a743920d81b7910627f68ee2c9ac1fc0bfee32b9fc3403587d7c6791ca12f80"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.12.0"
   leak_tracker:
     dependency: transitive
     description:
