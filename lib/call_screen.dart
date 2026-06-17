@@ -1,7 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'socket_service.dart';
-
+import 'api_service.dart';
 class CallScreen extends StatefulWidget {
   final String peerUserId;
   final String peerName;
@@ -30,6 +31,15 @@ class _CallScreenState extends State<CallScreen> {
   String _status = 'Bağlanıyor...';
   bool _connected = false;
 
+  // Kontroller
+  bool _micOn = true;
+  bool _camOn = true;
+  bool _frontCamera = true;
+
+  // Süre sayacı
+  Timer? _timer;
+  int _seconds = 0;
+
   final Map<String, dynamic> _iceConfig = {
     'iceServers': [
       {'urls': 'stun:stun.l.google.com:19302'},
@@ -57,7 +67,17 @@ class _CallScreenState extends State<CallScreen> {
       'video': {'facingMode': 'user'},
     });
     _localRenderer.srcObject = _localStream;
-
+// Aranan kişi (ev sahibi): görüntü tercihine bak. Tercih kapalıysa kamera kapalı başlasın.
+    if (!widget.isCaller) {
+      final showVideo = await ApiService.getVideoEnabled();
+      if (!showVideo) {
+        final videoTrack = _localStream?.getVideoTracks().first;
+        if (videoTrack != null) {
+          videoTrack.enabled = false;
+          _camOn = false;
+        }
+      }
+    }
     _pc = await createPeerConnection(_iceConfig);
     _localStream!.getTracks().forEach((track) {
       _pc!.addTrack(track, _localStream!);
@@ -67,6 +87,7 @@ class _CallScreenState extends State<CallScreen> {
       if (event.streams.isNotEmpty) {
         _remoteRenderer.srcObject = event.streams[0];
         setState(() { _connected = true; _status = 'Görüşülüyor'; });
+        _startTimer();
       }
     };
 
@@ -88,6 +109,19 @@ class _CallScreenState extends State<CallScreen> {
       setState(() { _status = '${widget.peerName} ile bağlanıyor...'; });
       SocketService.emit('call:accept', {'callId': _callId});
     }
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() => _seconds++);
+    });
+  }
+
+  String get _durationText {
+    final m = (_seconds ~/ 60).toString().padLeft(2, '0');
+    final s = (_seconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
   }
 
   void _setupSocketListeners() {
@@ -122,10 +156,13 @@ class _CallScreenState extends State<CallScreen> {
       ));
     });
 
-    SocketService.on('call:rejected', (_) => _endCall(notify: false));
+    SocketService.on('call:rejected', (_) {
+      setState(() => _status = 'Çağrı reddedildi');
+      Future.delayed(const Duration(seconds: 1), () => _endCall(notify: false));
+    });
     SocketService.on('call:ended', (_) => _endCall(notify: false));
     SocketService.on('call:unavailable', (data) {
-      setState(() { _status = 'Kullanıcı çevrimdışı'; });
+      setState(() => _status = 'Kullanıcı çevrimdışı');
       Future.delayed(const Duration(seconds: 2), () => _endCall(notify: false));
     });
   }
@@ -145,6 +182,35 @@ class _CallScreenState extends State<CallScreen> {
     });
   }
 
+  // Mikrofon aç/kapa
+  void _toggleMic() {
+    final audioTrack = _localStream?.getAudioTracks().first;
+    if (audioTrack != null) {
+      _micOn = !_micOn;
+      audioTrack.enabled = _micOn;
+      setState(() {});
+    }
+  }
+
+  // Kamera aç/kapa
+  void _toggleCam() {
+    final videoTrack = _localStream?.getVideoTracks().first;
+    if (videoTrack != null) {
+      _camOn = !_camOn;
+      videoTrack.enabled = _camOn;
+      setState(() {});
+    }
+  }
+
+  // Kamera çevir (ön/arka)
+  void _switchCamera() async {
+    final videoTrack = _localStream?.getVideoTracks().first;
+    if (videoTrack != null) {
+      await Helper.switchCamera(videoTrack);
+      setState(() => _frontCamera = !_frontCamera);
+    }
+  }
+
   void _endCall({bool notify = true}) {
     if (notify && _callId != null) {
       SocketService.emit('call:end', {'callId': _callId});
@@ -154,6 +220,7 @@ class _CallScreenState extends State<CallScreen> {
   }
 
   void _cleanup() {
+    _timer?.cancel();
     SocketService.off('call:accepted');
     SocketService.off('webrtc:offer');
     SocketService.off('webrtc:answer');
@@ -181,6 +248,7 @@ class _CallScreenState extends State<CallScreen> {
       body: SafeArea(
         child: Stack(
           children: [
+            // Karşı taraf videosu (tam ekran)
             Positioned.fill(
               child: _connected
                   ? RTCVideoView(_remoteRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
@@ -200,26 +268,95 @@ class _CallScreenState extends State<CallScreen> {
                 ),
               ),
             ),
+
+            // Üstte: isim + süre
+            if (_connected)
+              Positioned(
+                top: 16, left: 0, right: 0,
+                child: Column(
+                  children: [
+                    Text(widget.peerName, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(12)),
+                      child: Text(_durationText, style: const TextStyle(color: Colors.white, fontSize: 14)),
+                    ),
+                  ],
+                ),
+              ),
+
+            // Kendi videon (küçük, sağ üst)
             Positioned(
-              top: 16, right: 16,
+              top: _connected ? 70 : 16, right: 16,
               width: 110, height: 150,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: RTCVideoView(_localRenderer, mirror: true, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover),
+                child: _camOn
+                    ? RTCVideoView(_localRenderer, mirror: _frontCamera, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
+                    : Container(
+                  color: Colors.grey[800],
+                  child: const Center(child: Icon(Icons.videocam_off, color: Colors.white54)),
+                ),
               ),
             ),
+
+            // Alt kontrol butonları
             Positioned(
               bottom: 40, left: 0, right: 0,
-              child: Center(
-                child: FloatingActionButton(
-                  backgroundColor: Colors.red,
-                  onPressed: () => _endCall(),
-                  child: const Icon(Icons.call_end, color: Colors.white),
-                ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Mikrofon
+                  _controlButton(
+                    icon: _micOn ? Icons.mic : Icons.mic_off,
+                    color: _micOn ? Colors.white24 : Colors.red,
+                    onTap: _toggleMic,
+                  ),
+                  const SizedBox(width: 16),
+                  // Kamera
+                  _controlButton(
+                    icon: _camOn ? Icons.videocam : Icons.videocam_off,
+                    color: _camOn ? Colors.white24 : Colors.red,
+                    onTap: _toggleCam,
+                  ),
+                  const SizedBox(width: 16),
+                  // Kamera çevir
+                  _controlButton(
+                    icon: Icons.cameraswitch,
+                    color: Colors.white24,
+                    onTap: _switchCamera,
+                  ),
+                  const SizedBox(width: 16),
+                  // Kapat
+                  _controlButton(
+                    icon: Icons.call_end,
+                    color: Colors.red,
+                    onTap: () => _endCall(),
+                    big: true,
+                  ),
+                ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _controlButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+    bool big = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: big ? 64 : 56,
+        height: big ? 64 : 56,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        child: Icon(icon, color: Colors.white, size: big ? 32 : 26),
       ),
     );
   }

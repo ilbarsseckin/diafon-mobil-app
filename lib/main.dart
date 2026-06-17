@@ -4,6 +4,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'api_service.dart';
 import 'socket_service.dart';
 import 'call_screen.dart';
+import 'settings_screen.dart';
 
 void main() {
   runApp(const DiafonApp());
@@ -21,7 +22,56 @@ class DiafonApp extends StatelessWidget {
         colorSchemeSeed: const Color(0xFFE63946),
         useMaterial3: true,
       ),
-      home: const LoginScreen(),
+      home: const SplashScreen(),
+    );
+  }
+}
+
+// Açılış: kayıtlı giriş var mı kontrol et
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _check();
+  }
+
+  Future<void> _check() async {
+    final token = await ApiService.getToken();
+    final name = await ApiService.getUserName();
+    if (!mounted) return;
+    if (token != null && token.isNotEmpty) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => HomeScreen(userName: name ?? '')),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.doorbell, size: 72, color: Color(0xFFE63946)),
+            SizedBox(height: 20),
+            CircularProgressIndicator(color: Color(0xFFE63946)),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -299,6 +349,15 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: const Color(0xFFE63946),
         foregroundColor: Colors.white,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {

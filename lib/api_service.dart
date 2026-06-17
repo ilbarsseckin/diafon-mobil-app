@@ -3,11 +3,9 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiService {
-  // Sunucu adresi (gelistirme: IP, canlida domain olacak)
   static const String baseUrl = 'http://128.140.127.151:4000/api';
   static const storage = FlutterSecureStorage();
 
-  // --- Kayit: telefon + isim ---
   static Future<Map<String, dynamic>> register(String name, String phone) async {
     final res = await http.post(
       Uri.parse('$baseUrl/auth/register'),
@@ -17,7 +15,6 @@ class ApiService {
     return _handle(res);
   }
 
-  // --- Giris: mevcut kullaniciya OTP gonder ---
   static Future<Map<String, dynamic>> login(String phone) async {
     final res = await http.post(
       Uri.parse('$baseUrl/auth/login'),
@@ -27,7 +24,6 @@ class ApiService {
     return _handle(res);
   }
 
-  // --- OTP dogrula: token al ve sakla ---
   static Future<Map<String, dynamic>> verify(String phone, String code) async {
     final res = await http.post(
       Uri.parse('$baseUrl/auth/verify'),
@@ -43,26 +39,28 @@ class ApiService {
     return data;
   }
 
-  // --- Kayitli token ---
   static Future<String?> getToken() => storage.read(key: 'token');
-
-  // --- Cikis ---
+  static Future<String?> getUserName() => storage.read(key: 'userName');
   static Future<void> logout() => storage.deleteAll();
 
-  // --- Yakindaki bina + sakinler ---
+  // --- Görüntü tercihi (çağrılarda kameramı göster/gösterme) ---
+  static Future<bool> getVideoEnabled() async {
+    final val = await storage.read(key: 'videoEnabled');
+    return val != 'false';
+  }
+
+  static Future<void> setVideoEnabled(bool enabled) async {
+    await storage.write(key: 'videoEnabled', value: enabled ? 'true' : 'false');
+  }
+
+  // --- Yakındaki bina + sakinler ---
   static Future<Map<String, dynamic>> nearby(double lat, double lng) async {
-    final token = await getToken();
     final res = await http.get(
       Uri.parse('$baseUrl/buildings/nearby?lat=$lat&lng=$lng'),
-      headers: {
-        'Content-Type': 'application/json',
-        if (token != null) 'Authorization': 'Bearer $token',
-      },
     );
     return _handle(res);
   }
 
-  // --- Yardimci: yaniti coz ---
   static Map<String, dynamic> _handle(http.Response res) {
     final body = jsonDecode(utf8.decode(res.bodyBytes));
     if (res.statusCode >= 200 && res.statusCode < 300) {
