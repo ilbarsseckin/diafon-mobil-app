@@ -51,8 +51,13 @@ class ApiService {
 
   // --- Yakindaki bina + sakinler ---
   static Future<Map<String, dynamic>> nearby(double lat, double lng) async {
+    final token = await getToken();
     final res = await http.get(
       Uri.parse('$baseUrl/buildings/nearby?lat=$lat&lng=$lng'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
     );
     return _handle(res);
   }

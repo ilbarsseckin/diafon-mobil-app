@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'api_service.dart';
 
 void main() {
@@ -34,22 +36,19 @@ class _LoginScreenState extends State<LoginScreen> {
   final _phoneCtrl = TextEditingController();
   final _codeCtrl = TextEditingController();
 
-  bool _otpSent = false;   // OTP gönderildi mi
+  bool _otpSent = false;
   bool _loading = false;
   String? _error;
 
-  // OTP gönder (kayıt veya giriş)
   Future<void> _sendOtp() async {
     setState(() { _loading = true; _error = null; });
     try {
       final phone = _phoneCtrl.text.trim();
       final name = _nameCtrl.text.trim();
-      // İsim doluysa kayıt dene, değilse giriş
       if (name.isNotEmpty) {
         try {
           await ApiService.register(name, phone);
         } catch (e) {
-          // Zaten kayıtlıysa login'e düş
           await ApiService.login(phone);
         }
       } else {
@@ -63,7 +62,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // OTP doğrula
   Future<void> _verify() async {
     setState(() { _loading = true; _error = null; });
     try {
@@ -104,7 +102,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: TextStyle(color: Colors.grey[600]),
                 ),
                 const SizedBox(height: 32),
-
                 if (!_otpSent) ...[
                   TextField(
                     controller: _nameCtrl,
@@ -136,12 +133,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ],
-
                 if (_error != null) ...[
                   const SizedBox(height: 16),
                   Text(_error!, style: const TextStyle(color: Colors.red), textAlign: TextAlign.center),
                 ],
-
                 const SizedBox(height: 24),
                 FilledButton(
                   onPressed: _loading ? null : (_otpSent ? _verify : _sendOtp),
@@ -153,7 +148,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                       : Text(_otpSent ? 'Doğrula' : 'Kod Gönder', style: const TextStyle(fontSize: 16)),
                 ),
-
                 if (_otpSent) ...[
                   const SizedBox(height: 12),
                   TextButton(
@@ -170,10 +164,68 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-// Geçici ana ekran (sonra harita/sakin listesi olacak)
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   final String userName;
   const HomeScreen({super.key, required this.userName});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  bool _loading = true;
+  String? _error;
+  Map<String, dynamic>? _building;
+  List<dynamic> _residents = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNearby();
+  }
+
+  Future<void> _loadNearby() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      final status = await Permission.location.request();
+      if (!status.isGranted) {
+        setState(() { _error = 'Konum izni verilmedi'; _loading = false; });
+        return;
+      }
+
+      final locEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!locEnabled) {
+        setState(() { _error = 'Konum servisi kapalı. Lütfen GPS\'i açın.'; _loading = false; });
+        return;
+      }
+
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+
+      final data = await ApiService.nearby(pos.latitude, pos.longitude);
+
+      if (data['building'] != null) {
+        setState(() {
+          _building = data['building'];
+          _residents = data['residents'] ?? [];
+          _loading = false;
+        });
+      } else {
+        setState(() {
+          _building = null;
+          _residents = [];
+          _error = 'Yakınınızda kayıtlı bina yok';
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error = e.toString().replaceAll('Exception: ', '');
+        _loading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -182,19 +234,160 @@ class HomeScreen extends StatelessWidget {
         title: const Text('Diafon'),
         backgroundColor: const Color(0xFFE63946),
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              await ApiService.logout();
+              if (mounted) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                );
+              }
+            },
+          ),
+        ],
       ),
-      body: Center(
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) {
+      return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.check_circle, size: 64, color: Colors.green),
-            const SizedBox(height: 16),
-            Text('Hoş geldin, $userName!', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('Giriş başarılı. Sıradaki: harita + sakin listesi.'),
+            CircularProgressIndicator(color: Color(0xFFE63946)),
+            SizedBox(height: 16),
+            Text('Konum alınıyor...'),
           ],
         ),
-      ),
+      );
+    }
+
+    if (_error != null && _building == null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.location_off, size: 64, color: Colors.grey),
+              const SizedBox(height: 16),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: _loadNearby,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Yenile'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFE63946),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          color: const Color(0xFFE63946).withValues(alpha: 0.08),
+          child: Row(
+            children: [
+              const Icon(Icons.apartment, color: Color(0xFFE63946), size: 28),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  _building?['buildingName'] ?? 'Bina',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.refresh, color: Color(0xFFE63946)),
+                onPressed: _loadNearby,
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Text(
+            '${_residents.length} sakin',
+            style: TextStyle(color: Colors.grey[600], fontSize: 14),
+          ),
+        ),
+        Expanded(
+          child: _residents.isEmpty
+              ? const Center(child: Text('Bu binada kayıtlı sakin yok'))
+              : ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            itemCount: _residents.length,
+            itemBuilder: (context, i) {
+              final r = _residents[i];
+              final isOnline = r['isOnline'] == true;
+              return Card(
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: isOnline
+                        ? Colors.green.shade50
+                        : Colors.grey.shade100,
+                    child: Icon(
+                      Icons.person,
+                      color: isOnline ? Colors.green : Colors.grey,
+                    ),
+                  ),
+                  title: Text(
+                    r['name'] ?? '',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Text(
+                    'Daire ${r['flatNo'] ?? '-'} • Kat ${r['floor'] ?? '-'}',
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        margin: const EdgeInsets.only(right: 12),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isOnline ? Colors.green : Colors.grey,
+                        ),
+                      ),
+                      FilledButton.tonalIcon(
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('${r['name']} aranıyor... (çağrı ekranı yakında)'),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.call, size: 18),
+                        label: const Text('Ara'),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
