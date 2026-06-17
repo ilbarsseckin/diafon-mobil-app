@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'api_service.dart';
+import 'socket_service.dart';
+import 'call_screen.dart';
 
 void main() {
   runApp(const DiafonApp());
@@ -181,7 +183,65 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _initSocket();
     _loadNearby();
+  }
+
+  Future<void> _initSocket() async {
+    await SocketService.connect();
+    SocketService.on('call:incoming', (data) {
+      final caller = data['caller'];
+      final callId = data['callId'];
+      _showIncomingCall(caller['name'] ?? 'Bilinmeyen', caller['id'], callId);
+    });
+  }
+
+  void _showIncomingCall(String callerName, String callerId, String callId) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Gelen Çağrı'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.person, size: 48, color: Color(0xFFE63946)),
+            const SizedBox(height: 12),
+            Text(callerName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const Text('sizi arıyor...'),
+          ],
+        ),
+        actions: [
+          TextButton.icon(
+            onPressed: () {
+              SocketService.emit('call:reject', {'callId': callId});
+              Navigator.pop(ctx);
+            },
+            icon: const Icon(Icons.call_end, color: Colors.red),
+            label: const Text('Reddet', style: TextStyle(color: Colors.red)),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: Colors.green),
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => CallScreen(
+                    peerUserId: callerId,
+                    peerName: callerName,
+                    isCaller: false,
+                    incomingCallId: callId,
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.call),
+            label: const Text('Kabul Et'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadNearby() async {
@@ -192,19 +252,15 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() { _error = 'Konum izni verilmedi'; _loading = false; });
         return;
       }
-
       final locEnabled = await Geolocator.isLocationServiceEnabled();
       if (!locEnabled) {
         setState(() { _error = 'Konum servisi kapalı. Lütfen GPS\'i açın.'; _loading = false; });
         return;
       }
-
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       );
-
       final data = await ApiService.nearby(pos.latitude, pos.longitude);
-
       if (data['building'] != null) {
         setState(() {
           _building = data['building'];
@@ -213,18 +269,26 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       } else {
         setState(() {
-          _building = null;
-          _residents = [];
-          _error = 'Yakınınızda kayıtlı bina yok';
-          _loading = false;
+          _building = null; _residents = [];
+          _error = 'Yakınınızda kayıtlı bina yok'; _loading = false;
         });
       }
     } catch (e) {
-      setState(() {
-        _error = e.toString().replaceAll('Exception: ', '');
-        _loading = false;
-      });
+      setState(() { _error = e.toString().replaceAll('Exception: ', ''); _loading = false; });
     }
+  }
+
+  void _call(String userId, String name) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CallScreen(
+          peerUserId: userId,
+          peerName: name,
+          isCaller: true,
+        ),
+      ),
+    );
   }
 
   @override
@@ -238,11 +302,11 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
+              SocketService.disconnect();
               await ApiService.logout();
               if (mounted) {
                 Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  context, MaterialPageRoute(builder: (_) => const LoginScreen()),
                 );
               }
             },
@@ -266,7 +330,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     }
-
     if (_error != null && _building == null) {
       return Center(
         child: Padding(
@@ -276,27 +339,19 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               const Icon(Icons.location_off, size: 64, color: Colors.grey),
               const SizedBox(height: 16),
-              Text(
-                _error!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 16, color: Colors.grey),
-              ),
+              Text(_error!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, color: Colors.grey)),
               const SizedBox(height: 24),
               FilledButton.icon(
                 onPressed: _loadNearby,
                 icon: const Icon(Icons.refresh),
                 label: const Text('Yenile'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFFE63946),
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                ),
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFFE63946), padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)),
               ),
             ],
           ),
         ),
       );
     }
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -308,25 +363,14 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               const Icon(Icons.apartment, color: Color(0xFFE63946), size: 28),
               const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  _building?['buildingName'] ?? 'Bina',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.refresh, color: Color(0xFFE63946)),
-                onPressed: _loadNearby,
-              ),
+              Expanded(child: Text(_building?['buildingName'] ?? 'Bina', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+              IconButton(icon: const Icon(Icons.refresh, color: Color(0xFFE63946)), onPressed: _loadNearby),
             ],
           ),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Text(
-            '${_residents.length} sakin',
-            style: TextStyle(color: Colors.grey[600], fontSize: 14),
-          ),
+          child: Text('${_residents.length} sakin', style: TextStyle(color: Colors.grey[600], fontSize: 14)),
         ),
         Expanded(
           child: _residents.isEmpty
@@ -341,42 +385,21 @@ class _HomeScreenState extends State<HomeScreen> {
                 margin: const EdgeInsets.symmetric(vertical: 4),
                 child: ListTile(
                   leading: CircleAvatar(
-                    backgroundColor: isOnline
-                        ? Colors.green.shade50
-                        : Colors.grey.shade100,
-                    child: Icon(
-                      Icons.person,
-                      color: isOnline ? Colors.green : Colors.grey,
-                    ),
+                    backgroundColor: isOnline ? Colors.green.shade50 : Colors.grey.shade100,
+                    child: Icon(Icons.person, color: isOnline ? Colors.green : Colors.grey),
                   ),
-                  title: Text(
-                    r['name'] ?? '',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  subtitle: Text(
-                    'Daire ${r['flatNo'] ?? '-'} • Kat ${r['floor'] ?? '-'}',
-                  ),
+                  title: Text(r['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text('Daire ${r['flatNo'] ?? '-'} • Kat ${r['floor'] ?? '-'}'),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
-                        width: 8,
-                        height: 8,
+                        width: 8, height: 8,
                         margin: const EdgeInsets.only(right: 12),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isOnline ? Colors.green : Colors.grey,
-                        ),
+                        decoration: BoxDecoration(shape: BoxShape.circle, color: isOnline ? Colors.green : Colors.grey),
                       ),
                       FilledButton.tonalIcon(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('${r['name']} aranıyor... (çağrı ekranı yakında)'),
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
-                        },
+                        onPressed: () => _call(r['userId'], r['name'] ?? ''),
                         icon: const Icon(Icons.call, size: 18),
                         label: const Text('Ara'),
                       ),
