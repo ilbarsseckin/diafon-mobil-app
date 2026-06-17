@@ -52,7 +52,23 @@ class ApiService {
   static Future<void> setVideoEnabled(bool enabled) async {
     await storage.write(key: 'videoEnabled', value: enabled ? 'true' : 'false');
   }
-
+// --- FCM push token'ı backend'e kaydet ---
+  static Future<void> saveFcmToken(String fcmToken) async {
+    final token = await getToken();
+    if (token == null) return;
+    try {
+      await http.post(
+        Uri.parse('$baseUrl/auth/fcm-token'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'fcmToken': fcmToken}),
+      );
+    } catch (e) {
+      // sessizce geç
+    }
+  }
   // --- Yakındaki bina + sakinler ---
   static Future<Map<String, dynamic>> nearby(double lat, double lng) async {
     final res = await http.get(

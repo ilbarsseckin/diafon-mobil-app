@@ -1,3 +1,4 @@
+import 'package:diafon_mobil_app/push_service.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -6,10 +7,16 @@ import 'socket_service.dart';
 import 'call_screen.dart';
 import 'settings_screen.dart';
 
-void main() {
+import 'package:firebase_core/firebase_core.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+  }
   runApp(const DiafonApp());
 }
-
 class DiafonApp extends StatelessWidget {
   const DiafonApp({super.key});
 
@@ -238,6 +245,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _initSocket() async {
+    await PushService.init();
     await SocketService.connect();
     SocketService.on('call:incoming', (data) {
       final caller = data['caller'];

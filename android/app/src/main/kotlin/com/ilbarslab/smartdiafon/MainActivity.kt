@@ -1,4 +1,4 @@
-package com.example.diafon_mobil_app
+package com.ilbarslab.smartdiafon
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "126069683679",
+    "project_id": "smartdiafon-e985f",
+    "storage_bucket": "smartdiafon-e985f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:126069683679:android:f37042f713d4afe291006a",
+        "android_client_info": {
+          "package_name": "com.ilbarslab.smartdiafon"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCF73nciiOv1nr5eKnQ3uHg5TKqvHnPSmU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
