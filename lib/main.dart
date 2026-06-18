@@ -275,27 +275,21 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
 
-  // Açılışta CallKit'te bekleyen kabul edilmiş çağrı var mı kontrol et
   Future<void> _checkActiveCall() async {
     try {
       final calls = await FlutterCallkitIncoming.activeCalls();
+      // ignore: avoid_print
+      print('AKTIF CAGRILAR: $calls');
       if (calls is List && calls.isNotEmpty) {
         final call = calls[0];
-        // call bir CallKitParams nesnesi veya Map olabilir - ikisini de dene
-        Map<dynamic, dynamic> extra;
-        String callId;
-        if (call is CallKitParams) {
-          extra = call.extra ?? {};
-          callId = (extra['callId'] ?? call.id ?? '').toString();
-        } else if (call is Map) {
-          final dynamic m = call;
-          extra = m['extra'] ?? {};
-          callId = (extra['callId'] ?? m['id'] ?? '').toString();
-        } else {
-          return;
-        }
+        final dynamic c = call;
+        final extra = (c is CallKitParams ? c.extra : c['extra']) ?? {};
+        final callId = (extra['callId'] ?? '').toString();
         final callerUserId = (extra['callerUserId'] ?? '').toString();
         final callerName = (extra['callerName'] ?? 'Bilinmeyen').toString();
+        // ignore: avoid_print
+        print('CAGRI BILGISI: callId=$callId callerUserId=$callerUserId callerName=$callerName');
+
         if (callId.isNotEmpty && callerUserId.isNotEmpty && mounted) {
           await FlutterCallkitIncoming.endCall(callId);
           Navigator.push(
@@ -309,13 +303,15 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           );
+        } else {
+          await FlutterCallkitIncoming.endAllCalls();
         }
       }
     } catch (e) {
-      // sessizce geç
+      // ignore: avoid_print
+      print('CHECK ACTIVE CALL HATA: $e');
     }
   }
-
 
 // CallKit olaylarını dinle (kabul/red)
   void _listenCallKit() {

@@ -4,28 +4,30 @@ import 'api_service.dart';
 class PushService {
   static final _fcm = FirebaseMessaging.instance;
 
-  // Bildirim izni iste + token al + backend'e gönder
   static Future<void> init() async {
     try {
-      // İzin iste (Android 13+ ve iOS için)
-      await _fcm.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
+      final settings = await _fcm.requestPermission(
+        alert: true, badge: true, sound: true,
       );
+      // ignore: avoid_print
+      print('FCM IZIN: ${settings.authorizationStatus}');
 
-      // FCM token al
       final token = await _fcm.getToken();
+      // ignore: avoid_print
+      print('FCM TOKEN: ${token != null ? "alindi (${token.length} karakter)" : "NULL"}');
+
       if (token != null) {
         await ApiService.saveFcmToken(token);
+        // ignore: avoid_print
+        print('FCM TOKEN BACKENDE GONDERILDI');
       }
 
-      // Token yenilenince tekrar gönder
       _fcm.onTokenRefresh.listen((newToken) {
         ApiService.saveFcmToken(newToken);
       });
     } catch (e) {
-      // sessizce geç
+      // ignore: avoid_print
+      print('FCM HATA: $e');
     }
   }
 }
