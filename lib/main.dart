@@ -5,6 +5,7 @@ import 'package:flutter_callkit_incoming/entities/call_event.dart';
 import 'package:flutter_callkit_incoming/entities/call_kit_params.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'add_building_screen.dart';
 import 'api_service.dart';
 import 'socket_service.dart';
 import 'call_screen.dart';
@@ -457,6 +458,19 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: const Color(0xFFE63946),
         foregroundColor: Colors.white,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.add_home),
+            tooltip: 'Evimi Ekle',
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AddBuildingScreen()),
+              );
+              if (result == true) {
+                _loadNearby();
+              }
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {

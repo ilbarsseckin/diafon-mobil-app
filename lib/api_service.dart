@@ -87,4 +87,42 @@ class ApiService {
         : 'Bir hata oluştu';
     throw Exception(msg);
   }
+
+  // --- Sakin: bir binaya kayıtlı mıyım? ---
+  static Future<Map<String, dynamic>> myBuildingStatus() async {
+    final token = await getToken();
+    final res = await http.get(
+      Uri.parse('$baseUrl/buildings/my-status'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return _handle(res);
+  }
+
+  // --- Sakin: evini ekle / binaya katıl ---
+  static Future<Map<String, dynamic>> joinBuilding({
+    required String buildingName,
+    String? address,
+    required double latitude,
+    required double longitude,
+    required String flatNo,
+    String? floor,
+  }) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/buildings/join'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'buildingName': buildingName,
+        'address': address,
+        'latitude': latitude,
+        'longitude': longitude,
+        'flatNo': flatNo,
+        'floor': floor,
+      }),
+    );
+    return _handle(res);
+  }
 }
