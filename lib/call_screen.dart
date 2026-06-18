@@ -67,6 +67,12 @@ class _CallScreenState extends State<CallScreen> {
       'video': {'facingMode': 'user'},
     });
     _localRenderer.srcObject = _localStream;
+    // Hoparlörü aç (diafon için ses yüksek olmalı)
+    try {
+      await Helper.setSpeakerphoneOn(true);
+    } catch (e) {
+      // bazı cihazlarda desteklenmeyebilir
+    }
 // Aranan kişi (ev sahibi): görüntü tercihine bak. Tercih kapalıysa kamera kapalı başlasın.
     if (!widget.isCaller) {
       final showVideo = await ApiService.getVideoEnabled();

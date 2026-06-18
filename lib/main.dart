@@ -1,3 +1,4 @@
+import 'package:diafon_mobil_app/qr_scan_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -15,6 +16,7 @@ import 'callkit_service.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'dart:async';
+import 'qr_scan_screen.dart';
 // Arka planda/kapalıyken gelen FCM mesajını yakalar
 @pragma('vm:entry-point')
 Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
@@ -480,6 +482,33 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // QR okut -> token ile bina + sakin listesi yükle
+  Future<void> _scanQr() async {
+    final token = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const QrScanScreen()),
+    );
+    if (token == null || token.isEmpty) return;
+    setState(() { _loading = true; _error = null; });
+    try {
+      final data = await ApiService.nearbyByQr(token);
+      if (data['building'] != null) {
+        setState(() {
+          _building = data['building'];
+          _residents = data['residents'] ?? [];
+          _loading = false;
+        });
+      } else {
+        setState(() {
+          _error = data['message'] ?? 'Geçersiz QR kod';
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      setState(() { _error = e.toString().replaceAll('Exception: ', ''); _loading = false; });
+    }
+  }
+
   void _call(String userId, String name) {
     Navigator.push(
       context,
@@ -501,6 +530,7 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: const Color(0xFFE63946),
         foregroundColor: Colors.white,
         actions: [
+
           IconButton(
             icon: const Icon(Icons.add_home),
             tooltip: 'Evimi Ekle',
@@ -513,6 +543,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 _loadNearby();
               }
             },
+          ),
+          IconButton(
+            icon: const Icon(Icons.qr_code_scanner),
+            tooltip: 'QR Okut',
+            onPressed: _scanQr,
           ),
           IconButton(
             icon: const Icon(Icons.settings),

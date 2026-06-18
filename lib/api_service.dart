@@ -75,8 +75,16 @@ class ApiService {
       Uri.parse('$baseUrl/buildings/nearby?lat=$lat&lng=$lng'),
     );
     return _handle(res);
-  }
 
+
+  }
+// --- QR token ile bina + sakinler ---
+  static Future<Map<String, dynamic>> nearbyByQr(String token) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/buildings/by-qr?token=$token'),
+    );
+    return _handle(res);
+  }
   static Map<String, dynamic> _handle(http.Response res) {
     final body = jsonDecode(utf8.decode(res.bodyBytes));
     if (res.statusCode >= 200 && res.statusCode < 300) {
