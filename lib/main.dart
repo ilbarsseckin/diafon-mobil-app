@@ -1,11 +1,13 @@
-import 'package:diafon_mobil_app/qr_scan_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_callkit_incoming/entities/call_event.dart';
 import 'package:flutter_callkit_incoming/entities/call_kit_params.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
+import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'dart:async';
 import 'add_building_screen.dart';
 import 'api_service.dart';
 import 'socket_service.dart';
@@ -13,10 +15,9 @@ import 'call_screen.dart';
 import 'settings_screen.dart';
 import 'push_service.dart';
 import 'callkit_service.dart';
-import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
-import 'package:flutter_callkit_incoming/entities/entities.dart';
-import 'dart:async';
 import 'qr_scan_screen.dart';
+import 'call_history_screen.dart';
+
 // Arka planda/kapalıyken gelen FCM mesajını yakalar
 @pragma('vm:entry-point')
 Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
@@ -83,29 +84,20 @@ class _SplashScreenState extends State<SplashScreen> {
       );
       return;
     }
-    // Giriş var -> binaya kayıtlı mı?
     bool registered = true;
     try {
       final status = await ApiService.myBuildingStatus();
-      // ignore: avoid_print
-      print('BINA DURUMU: $status');
       registered = status['registered'] == true;
     } catch (e) {
-      // ignore: avoid_print
-      print('BINA DURUMU HATA: $e');
+      // hata olursa yine de ana ekrana git
     }
     if (!mounted) return;
-    if (registered) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => HomeScreen(userName: name ?? '')),
-      );
-    } else {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => HomeScreen(userName: name ?? '', autoAddBuilding: true)),
-      );
-    }
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => HomeScreen(userName: name ?? '', autoAddBuilding: !registered),
+      ),
+    );
   }
 
   @override
@@ -167,7 +159,6 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() { _loading = true; _error = null; });
     try {
       final data = await ApiService.verify(_phoneCtrl.text.trim(), _codeCtrl.text.trim());
-      // Binaya kayıtlı mı kontrol et
       bool registered = true;
       try {
         final status = await ApiService.myBuildingStatus();
@@ -190,6 +181,7 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() { _loading = false; });
     }
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -299,7 +291,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadNearby();
     _listenCallKit();
     Future.delayed(const Duration(milliseconds: 800), _checkActiveCall);
-    // Yeni kullanıcı: binaya kayıtlı değilse evini eklemeye yönlendir
     if (widget.autoAddBuilding) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _openAddBuilding());
     }
@@ -313,57 +304,23 @@ class _HomeScreenState extends State<HomeScreen> {
     if (result == true) _loadNearby();
   }
 
-
   @override
   void dispose() {
     _callkitSub?.cancel();
     super.dispose();
   }
 
-
   Future<void> _checkActiveCall() async {
     try {
-      final calls = await FlutterCallkitIncoming.activeCalls();
-      // ignore: avoid_print
-      print('AKTIF CAGRILAR: $calls');
-      if (calls is List && calls.isNotEmpty) {
-        final call = calls[0];
-        final dynamic c = call;
-        final extra = (c is CallKitParams ? c.extra : c['extra']) ?? {};
-        final callId = (extra['callId'] ?? '').toString();
-        final callerUserId = (extra['callerUserId'] ?? '').toString();
-        final callerName = (extra['callerName'] ?? 'Bilinmeyen').toString();
-        // ignore: avoid_print
-        print('CAGRI BILGISI: callId=$callId callerUserId=$callerUserId callerName=$callerName');
-
-        if (callId.isNotEmpty && callerUserId.isNotEmpty && mounted) {
-          await FlutterCallkitIncoming.endCall(callId);
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => CallScreen(
-                peerUserId: callerUserId,
-                peerName: callerName,
-                isCaller: false,
-                incomingCallId: callId,
-              ),
-            ),
-          );
-        } else {
-          await FlutterCallkitIncoming.endAllCalls();
-        }
-      }
+      await FlutterCallkitIncoming.endAllCalls();
     } catch (e) {
-      // ignore: avoid_print
-      print('CHECK ACTIVE CALL HATA: $e');
+      // sessizce geç
     }
   }
 
-// CallKit olaylarını dinle (kabul/red)
   void _listenCallKit() {
     _callkitSub = FlutterCallkitIncoming.onEvent.listen((event) {
       if (event == null) return;
-
       if (event is CallEventActionCallAccept) {
         final extra = event.callKitParams.extra ?? {};
         final callId = (extra['callId'] ?? event.callKitParams.id ?? '').toString();
@@ -390,6 +347,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     });
   }
+
   Future<void> _initSocket() async {
     await PushService.init();
     await SocketService.connect();
@@ -482,7 +440,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // QR okut -> token ile bina + sakin listesi yükle
   Future<void> _scanQr() async {
     final token = await Navigator.push<String>(
       context,
@@ -530,7 +487,6 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: const Color(0xFFE63946),
         foregroundColor: Colors.white,
         actions: [
-
           IconButton(
             icon: const Icon(Icons.add_home),
             tooltip: 'Evimi Ekle',
@@ -539,15 +495,23 @@ class _HomeScreenState extends State<HomeScreen> {
                 context,
                 MaterialPageRoute(builder: (_) => const AddBuildingScreen()),
               );
-              if (result == true) {
-                _loadNearby();
-              }
+              if (result == true) _loadNearby();
             },
           ),
           IconButton(
             icon: const Icon(Icons.qr_code_scanner),
             tooltip: 'QR Okut',
             onPressed: _scanQr,
+          ),
+          IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: 'Çağrı Geçmişi',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const CallHistoryScreen()),
+              );
+            },
           ),
           IconButton(
             icon: const Icon(Icons.settings),

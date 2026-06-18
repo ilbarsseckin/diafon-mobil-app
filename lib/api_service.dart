@@ -78,6 +78,21 @@ class ApiService {
 
 
   }
+  // --- Çağrı geçmişim ---
+  static Future<List<dynamic>> callHistory() async {
+    final token = await getToken();
+    final res = await http.get(
+      Uri.parse('$baseUrl/calls/history'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      if (body is List) return body;
+      if (body is Map && body['data'] is List) return body['data'];
+      return [];
+    }
+    throw Exception('Geçmiş alınamadı');
+  }
 // --- QR token ile bina + sakinler ---
   static Future<Map<String, dynamic>> nearbyByQr(String token) async {
     final res = await http.get(
