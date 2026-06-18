@@ -74,7 +74,26 @@ class _SplashScreenState extends State<SplashScreen> {
     final token = await ApiService.getToken();
     final name = await ApiService.getUserName();
     if (!mounted) return;
-    if (token != null && token.isNotEmpty) {
+    if (token == null || token.isEmpty) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+      return;
+    }
+    // Giriş var -> binaya kayıtlı mı?
+    bool registered = true;
+    try {
+      final status = await ApiService.myBuildingStatus();
+      // ignore: avoid_print
+      print('BINA DURUMU: $status');
+      registered = status['registered'] == true;
+    } catch (e) {
+      // ignore: avoid_print
+      print('BINA DURUMU HATA: $e');
+    }
+    if (!mounted) return;
+    if (registered) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => HomeScreen(userName: name ?? '')),
@@ -82,7 +101,7 @@ class _SplashScreenState extends State<SplashScreen> {
     } else {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        MaterialPageRoute(builder: (_) => HomeScreen(userName: name ?? '', autoAddBuilding: true)),
       );
     }
   }
@@ -146,10 +165,21 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() { _loading = true; _error = null; });
     try {
       final data = await ApiService.verify(_phoneCtrl.text.trim(), _codeCtrl.text.trim());
+      // Binaya kayıtlı mı kontrol et
+      bool registered = true;
+      try {
+        final status = await ApiService.myBuildingStatus();
+        registered = status['registered'] == true;
+      } catch (_) {}
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => HomeScreen(userName: data['user']['name'])),
+          MaterialPageRoute(
+            builder: (_) => HomeScreen(
+              userName: data['user']['name'],
+              autoAddBuilding: !registered,
+            ),
+          ),
         );
       }
     } catch (e) {
@@ -158,7 +188,6 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() { _loading = false; });
     }
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -246,7 +275,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
 class HomeScreen extends StatefulWidget {
   final String userName;
-  const HomeScreen({super.key, required this.userName});
+  final bool autoAddBuilding;
+  const HomeScreen({super.key, required this.userName, this.autoAddBuilding = false});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -267,7 +297,20 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadNearby();
     _listenCallKit();
     Future.delayed(const Duration(milliseconds: 800), _checkActiveCall);
+    // Yeni kullanıcı: binaya kayıtlı değilse evini eklemeye yönlendir
+    if (widget.autoAddBuilding) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _openAddBuilding());
+    }
   }
+
+  Future<void> _openAddBuilding() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AddBuildingScreen()),
+    );
+    if (result == true) _loadNearby();
+  }
+
 
   @override
   void dispose() {
