@@ -93,6 +93,27 @@ class ApiService {
     }
     throw Exception('Geçmiş alınamadı');
   }
+  // --- Misafir fotosu yükle, URL dön ---
+  static Future<String?> uploadCallPhoto(String base64Photo, {String? callId}) async {
+    final token = await getToken();
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/calls/photo'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'photo': base64Photo, if (callId != null) 'callId': callId}),
+      );
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final body = jsonDecode(utf8.decode(res.bodyBytes));
+        return body['url'] as String?;
+      }
+    } catch (e) {
+      // sessizce geç
+    }
+    return null;
+  }
 // --- QR token ile bina + sakinler ---
   static Future<Map<String, dynamic>> nearbyByQr(String token) async {
     final res = await http.get(
@@ -147,5 +168,38 @@ class ApiService {
       }),
     );
     return _handle(res);
+  }
+
+  // --- Profil fotosu yükle ---
+  static Future<String?> uploadProfilePhoto(String base64Photo) async {
+    final token = await getToken();
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/auth/profile-photo'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'photo': base64Photo}),
+      );
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final body = jsonDecode(utf8.decode(res.bodyBytes));
+        final url = body['url'] as String?;
+        if (url != null) {
+          await storage.write(key: 'photoUrl', value: url);
+        }
+        return url;
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  static Future<String?> getPhotoUrl() => storage.read(key: 'photoUrl');
+
+  // Foto URL'ini tam adrese çevir (örn /uploads/x.jpg -> http://.../uploads/x.jpg)
+  static String fullPhotoUrl(String? path) {
+    if (path == null || path.isEmpty) return '';
+    if (path.startsWith('http')) return path;
+    return 'http://128.140.127.151:4000$path';
   }
 }

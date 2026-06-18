@@ -18,7 +18,6 @@ import 'callkit_service.dart';
 import 'qr_scan_screen.dart';
 import 'call_history_screen.dart';
 
-// Arka planda/kapalıyken gelen FCM mesajını yakalar
 @pragma('vm:entry-point')
 Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
   final data = message.data;
@@ -354,11 +353,17 @@ class _HomeScreenState extends State<HomeScreen> {
     SocketService.on('call:incoming', (data) {
       final caller = data['caller'];
       final callId = data['callId'];
-      _showIncomingCall(caller['name'] ?? 'Bilinmeyen', caller['id'], callId);
+      print('GELEN CAGRI CALLER: $caller');
+      _showIncomingCall(
+        caller['name'] ?? 'Bilinmeyen',
+        caller['id'],
+        callId,
+        caller['photoUrl']?.toString(),
+      );
     });
   }
 
-  void _showIncomingCall(String callerName, String callerId, String callId) {
+  void _showIncomingCall(String callerName, String callerId, String callId, [String? photoUrl]) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -367,7 +372,16 @@ class _HomeScreenState extends State<HomeScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.person, size: 48, color: Color(0xFFE63946)),
+            CircleAvatar(
+              radius: 40,
+              backgroundColor: const Color(0xFFE63946).withValues(alpha: 0.1),
+              backgroundImage: (photoUrl != null && photoUrl.isNotEmpty)
+                  ? NetworkImage(ApiService.fullPhotoUrl(photoUrl))
+                  : null,
+              child: (photoUrl == null || photoUrl.isEmpty)
+                  ? const Icon(Icons.person, size: 40, color: Color(0xFFE63946))
+                  : null,
+            ),
             const SizedBox(height: 12),
             Text(callerName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const Text('sizi arıyor...'),
@@ -609,7 +623,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: ListTile(
                   leading: CircleAvatar(
                     backgroundColor: isOnline ? Colors.green.shade50 : Colors.grey.shade100,
-                    child: Icon(Icons.person, color: isOnline ? Colors.green : Colors.grey),
+                    backgroundImage: (r['photoUrl'] != null && r['photoUrl'].toString().isNotEmpty)
+                        ? NetworkImage(ApiService.fullPhotoUrl(r['photoUrl']))
+                        : null,
+                    child: (r['photoUrl'] == null || r['photoUrl'].toString().isEmpty)
+                        ? Icon(Icons.person, color: isOnline ? Colors.green : Colors.grey)
+                        : null,
                   ),
                   title: Text(r['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w600)),
                   subtitle: Text('Daire ${r['flatNo'] ?? '-'} • Kat ${r['floor'] ?? '-'}'),

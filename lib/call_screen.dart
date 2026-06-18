@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'socket_service.dart';
 import 'api_service.dart';
+
 class CallScreen extends StatefulWidget {
   final String peerUserId;
   final String peerName;
@@ -31,12 +33,10 @@ class _CallScreenState extends State<CallScreen> {
   String _status = 'Bağlanıyor...';
   bool _connected = false;
 
-  // Kontroller
   bool _micOn = true;
   bool _camOn = true;
   bool _frontCamera = true;
 
-  // Süre sayacı
   Timer? _timer;
   int _seconds = 0;
 
@@ -67,13 +67,14 @@ class _CallScreenState extends State<CallScreen> {
       'video': {'facingMode': 'user'},
     });
     _localRenderer.srcObject = _localStream;
-    // Hoparlörü aç (diafon için ses yüksek olmalı)
+
     try {
       await Helper.setSpeakerphoneOn(true);
     } catch (e) {
       // bazı cihazlarda desteklenmeyebilir
     }
-// Aranan kişi (ev sahibi): görüntü tercihine bak. Tercih kapalıysa kamera kapalı başlasın.
+
+    // Aranan kişi (ev sahibi): görüntü tercihine bak. Kapalıysa kamera kapalı başlasın.
     if (!widget.isCaller) {
       final showVideo = await ApiService.getVideoEnabled();
       if (!showVideo) {
@@ -84,6 +85,7 @@ class _CallScreenState extends State<CallScreen> {
         }
       }
     }
+
     _pc = await createPeerConnection(_iceConfig);
     _localStream!.getTracks().forEach((track) {
       _pc!.addTrack(track, _localStream!);
@@ -130,7 +132,29 @@ class _CallScreenState extends State<CallScreen> {
     return '$m:$s';
   }
 
+  Future<void> _captureAndUploadPhoto() async {
+    try {
+      await Future.delayed(const Duration(milliseconds: 600));
+      final videoTrack = _localStream?.getVideoTracks().first;
+      if (videoTrack == null) {
+        print('FOTO: videoTrack null');
+        return;
+      }
+      final buffer = await videoTrack.captureFrame();
+      final bytes = buffer.asUint8List();
+      print('FOTO: kare yakalandi ${bytes.length} byte, callId=$_callId');
+      final base64Str = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+      final url = await ApiService.uploadCallPhoto(base64Str, callId: _callId);
+      print('FOTO: yuklendi url=$url');
+    } catch (e) {
+      print('FOTO HATA: $e');
+    }
+  }
   void _setupSocketListeners() {
+    SocketService.on('call:ringing', (data) {
+      _callId = data['callId'];
+    });
+
     SocketService.on('call:accepted', (data) async {
       _callId = data['callId'];
       await _createOffer();
@@ -188,7 +212,6 @@ class _CallScreenState extends State<CallScreen> {
     });
   }
 
-  // Mikrofon aç/kapa
   void _toggleMic() {
     final audioTrack = _localStream?.getAudioTracks().first;
     if (audioTrack != null) {
@@ -198,7 +221,6 @@ class _CallScreenState extends State<CallScreen> {
     }
   }
 
-  // Kamera aç/kapa
   void _toggleCam() {
     final videoTrack = _localStream?.getVideoTracks().first;
     if (videoTrack != null) {
@@ -208,7 +230,6 @@ class _CallScreenState extends State<CallScreen> {
     }
   }
 
-  // Kamera çevir (ön/arka)
   void _switchCamera() async {
     final videoTrack = _localStream?.getVideoTracks().first;
     if (videoTrack != null) {
@@ -227,6 +248,7 @@ class _CallScreenState extends State<CallScreen> {
 
   void _cleanup() {
     _timer?.cancel();
+    SocketService.off('call:ringing');
     SocketService.off('call:accepted');
     SocketService.off('webrtc:offer');
     SocketService.off('webrtc:answer');
@@ -254,7 +276,6 @@ class _CallScreenState extends State<CallScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            // Karşı taraf videosu (tam ekran)
             Positioned.fill(
               child: _connected
                   ? RTCVideoView(_remoteRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
@@ -275,7 +296,6 @@ class _CallScreenState extends State<CallScreen> {
               ),
             ),
 
-            // Üstte: isim + süre
             if (_connected)
               Positioned(
                 top: 16, left: 0, right: 0,
@@ -292,7 +312,6 @@ class _CallScreenState extends State<CallScreen> {
                 ),
               ),
 
-            // Kendi videon (küçük, sağ üst)
             Positioned(
               top: _connected ? 70 : 16, right: 16,
               width: 110, height: 150,
@@ -307,34 +326,29 @@ class _CallScreenState extends State<CallScreen> {
               ),
             ),
 
-            // Alt kontrol butonları
             Positioned(
               bottom: 40, left: 0, right: 0,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Mikrofon
                   _controlButton(
                     icon: _micOn ? Icons.mic : Icons.mic_off,
                     color: _micOn ? Colors.white24 : Colors.red,
                     onTap: _toggleMic,
                   ),
                   const SizedBox(width: 16),
-                  // Kamera
                   _controlButton(
                     icon: _camOn ? Icons.videocam : Icons.videocam_off,
                     color: _camOn ? Colors.white24 : Colors.red,
                     onTap: _toggleCam,
                   ),
                   const SizedBox(width: 16),
-                  // Kamera çevir
                   _controlButton(
                     icon: Icons.cameraswitch,
                     color: Colors.white24,
                     onTap: _switchCamera,
                   ),
                   const SizedBox(width: 16),
-                  // Kapat
                   _controlButton(
                     icon: Icons.call_end,
                     color: Colors.red,
