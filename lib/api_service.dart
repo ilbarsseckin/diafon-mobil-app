@@ -223,4 +223,15 @@ class ApiService {
     );
     return _handle(res);
   }
+  // --- Yakındaki binaları listele (çift bina önleme) ---
+  static Future<List<dynamic>> nearbyBuildings(double lat, double lng) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/buildings/nearby-list?lat=$lat&lng=$lng'),
+    );
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      if (body is List) return body;
+    }
+    return [];
+  }
 }

@@ -58,10 +58,74 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
       _toast('Daire no girin');
       return;
     }
+
+    setState(() => _submitting = true);
+
+    // ÖNCE yakındaki binaları kontrol et (çift bina önleme)
+    try {
+      final nearby = await ApiService.nearbyBuildings(_selected!.latitude, _selected!.longitude);
+      if (nearby.isNotEmpty && mounted) {
+        setState(() => _submitting = false);
+        final choice = await _showNearbyDialog(nearby);
+        // choice: null = iptal, 'new' = yeni ekle, aksi = mevcut binaya katıl (buildingName)
+        if (choice == null) return; // iptal
+        if (choice != 'new') {
+          // Mevcut binaya katıl: aslında joinBuilding zaten eşleştirme yapıyor
+          // ama kullanıcı onayladı, o binanın adıyla gönderelim
+          await _doJoin(buildingNameOverride: choice);
+          return;
+        }
+        // 'new' -> aşağıda yeni ekleme devam eder
+      }
+    } catch (e) {
+      // yakın bina kontrolü başarısızsa, normal akışa devam
+    }
+
+    await _doJoin();
+  }
+
+  // Yakındaki binaları gösteren dialog
+  Future<String?> _showNearbyDialog(List<dynamic> nearby) async {
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Yakında bina var'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Konumunuza yakın kayıtlı binalar bulundu. Sizinki bunlardan biri mi?'),
+            const SizedBox(height: 12),
+            ...nearby.map((b) => ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.apartment, color: Color(0xFFE63946)),
+              title: Text(b['buildingName']?.toString() ?? 'Bina'),
+              subtitle: Text('${b['distance'] ?? '?'} metre uzakta'),
+              onTap: () => Navigator.pop(ctx, b['buildingName']?.toString() ?? 'new'),
+            )),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: const Text('İptal'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFE63946)),
+            onPressed: () => Navigator.pop(ctx, 'new'),
+            child: const Text('Hiçbiri, Yeni Ekle'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Asıl ekleme/katılma işlemi
+  Future<void> _doJoin({String? buildingNameOverride}) async {
     setState(() => _submitting = true);
     try {
       final res = await ApiService.joinBuilding(
-        buildingName: _nameCtrl.text.trim(),
+        buildingName: buildingNameOverride ?? _nameCtrl.text.trim(),
         address: _addressCtrl.text.trim(),
         latitude: _selected!.latitude,
         longitude: _selected!.longitude,
@@ -70,7 +134,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
       );
       if (mounted) {
         _toast(res['message'] ?? 'Eklendi');
-        Navigator.pop(context, true); // başarı
+        Navigator.pop(context, true);
       }
     } catch (e) {
       _toast(e.toString().replaceAll('Exception: ', ''));
