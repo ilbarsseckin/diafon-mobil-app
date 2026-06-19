@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter_callkit_incoming/entities/call_event.dart';
-import 'package:flutter_callkit_incoming/entities/call_kit_params.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:geolocator/geolocator.dart';
@@ -18,14 +16,20 @@ import 'callkit_service.dart';
 import 'qr_scan_screen.dart';
 import 'call_history_screen.dart';
 
+// Arka planda/kapalıyken gelen FCM mesajını yakalar
 @pragma('vm:entry-point')
 Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
   final data = message.data;
   if (data['type'] == 'incoming_call') {
+    final photo = (data['callerPhoto'] ?? '').toString();
+    final fullPhoto = (photo.isNotEmpty && !photo.startsWith('http'))
+        ? 'http://128.140.127.151:4000$photo'
+        : photo;
     await CallKitService.showIncomingCall(
       callId: data['callId'] ?? '',
       callerName: data['callerName'] ?? 'Bilinmeyen',
       callerUserId: data['callerUserId'] ?? '',
+      callerPhotoUrl: fullPhoto,
     );
   }
 }
@@ -123,7 +127,6 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-// Akış aşamaları
 enum _LoginStep { phone, name, otp }
 
 class _LoginScreenState extends State<LoginScreen> {
@@ -135,7 +138,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _loading = false;
   String? _error;
 
-  // 1. Telefon girildi -> kayıtlı mı kontrol et
   Future<void> _continuePhone() async {
     final phone = _phoneCtrl.text.trim();
     if (phone.length < 10) {
@@ -144,14 +146,11 @@ class _LoginScreenState extends State<LoginScreen> {
     }
     setState(() { _loading = true; _error = null; });
     try {
-      // Kayıtlı kullanıcı mı? login dene
       await ApiService.login(phone);
-      // Başarılı -> kayıtlı, OTP gönderildi
       setState(() { _step = _LoginStep.otp; _loading = false; });
     } catch (e) {
       final msg = e.toString();
       if (msg.contains('kayıtlı değil')) {
-        // Yeni kullanıcı -> isim iste
         setState(() { _step = _LoginStep.name; _loading = false; });
       } else {
         setState(() { _error = msg.replaceAll('Exception: ', ''); _loading = false; });
@@ -159,7 +158,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // 2. İsim girildi (yeni kullanıcı) -> kayıt + OTP
   Future<void> _continueName() async {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
@@ -175,7 +173,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // 3. OTP doğrula -> giriş
   Future<void> _verify() async {
     if (_codeCtrl.text.trim().isEmpty) {
       setState(() => _error = 'Doğrulama kodunu girin');
@@ -228,9 +225,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   String get _buttonText {
     switch (_step) {
-      case _LoginStep.phone: return 'Devam';
-      case _LoginStep.name: return 'Devam';
       case _LoginStep.otp: return 'Giriş Yap';
+      default: return 'Devam';
     }
   }
 
@@ -254,7 +250,6 @@ class _LoginScreenState extends State<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Logo
                 Container(
                   width: 90, height: 90,
                   margin: const EdgeInsets.only(bottom: 8),
@@ -272,8 +267,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.grey[600], fontSize: 15)),
                 const SizedBox(height: 36),
-
-                // Aşamaya göre alan
                 if (_step == _LoginStep.phone)
                   TextField(
                     controller: _phoneCtrl,
@@ -291,7 +284,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     controller: _nameCtrl,
                     autofocus: true,
                     keyboardType: TextInputType.name,
-                    textInputAction: TextInputAction.done,
                     textCapitalization: TextCapitalization.words,
                     decoration: InputDecoration(
                       labelText: 'Ad Soyad',
@@ -311,12 +303,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
-
                 if (_error != null) ...[
                   const SizedBox(height: 16),
                   Text(_error!, style: const TextStyle(color: Colors.red), textAlign: TextAlign.center),
                 ],
-
                 const SizedBox(height: 24),
                 FilledButton(
                   onPressed: _loading ? null : _action,
@@ -329,7 +319,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                       : Text(_buttonText, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                 ),
-
                 if (_step != _LoginStep.phone) ...[
                   const SizedBox(height: 12),
                   TextButton(
@@ -337,7 +326,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: const Text('Geri', style: TextStyle(color: Colors.grey)),
                   ),
                 ],
-
                 if (_step == _LoginStep.otp) ...[
                   const SizedBox(height: 4),
                   Text('${_phoneCtrl.text} numarasına kod gönderildi',
@@ -352,6 +340,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
+
 class HomeScreen extends StatefulWidget {
   final String userName;
   final bool autoAddBuilding;
@@ -395,11 +384,38 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  // Uygulama kapalıyken CallKit'ten kabul edilmiş çağrıyı yakala
   Future<void> _checkActiveCall() async {
     try {
-      await FlutterCallkitIncoming.endAllCalls();
+      final calls = await FlutterCallkitIncoming.activeCalls();
+      print('AKTIF CAGRILAR: $calls');
+      if (calls is List && calls.isNotEmpty) {
+        final dynamic call = calls[0];
+        final extra = (call is CallKitParams ? call.extra : (call is Map ? call['extra'] : null)) ?? {};
+        final callId = (extra['callId'] ?? '').toString();
+        final callerUserId = (extra['callerUserId'] ?? '').toString();
+        final callerName = (extra['callerName'] ?? 'Bilinmeyen').toString();
+        print('AKTIF CAGRI: callId=$callId callerUserId=$callerUserId');
+
+        if (callId.isNotEmpty && callerUserId.isNotEmpty && mounted) {
+          await FlutterCallkitIncoming.endCall(callId);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => CallScreen(
+                peerUserId: callerUserId,
+                peerName: callerName,
+                isCaller: false,
+                incomingCallId: callId,
+              ),
+            ),
+          );
+        } else {
+          await FlutterCallkitIncoming.endAllCalls();
+        }
+      }
     } catch (e) {
-      // sessizce geç
+      print('CHECK ACTIVE CALL HATA: $e');
     }
   }
 
@@ -439,7 +455,6 @@ class _HomeScreenState extends State<HomeScreen> {
     SocketService.on('call:incoming', (data) {
       final caller = data['caller'];
       final callId = data['callId'];
-      print('GELEN CAGRI CALLER: $caller');
       _showIncomingCall(
         caller['name'] ?? 'Bilinmeyen',
         caller['id'],
@@ -613,7 +628,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       body: _buildBody(),
-      // ORTADA YÜZEN BÜYÜK QR BUTONU
       floatingActionButton: FloatingActionButton(
         onPressed: _scanQr,
         backgroundColor: const Color(0xFFE63946),
@@ -621,7 +635,6 @@ class _HomeScreenState extends State<HomeScreen> {
         child: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 30),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      // ALT BAR
       bottomNavigationBar: BottomAppBar(
         shape: const CircularNotchedRectangle(),
         notchMargin: 8,
@@ -631,14 +644,8 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              // Ana Sayfa
-              _bottomBarItem(
-                icon: Icons.home,
-                label: 'Ana Sayfa',
-                onTap: _loadNearby,
-              ),
-              const SizedBox(width: 48), // ortadaki QR butonu için boşluk
-              // Çağrı Geçmişi
+              _bottomBarItem(icon: Icons.home, label: 'Ana Sayfa', onTap: _loadNearby),
+              const SizedBox(width: 48),
               _bottomBarItem(
                 icon: Icons.history,
                 label: 'Geçmiş',
@@ -656,12 +663,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Alt bar öğesi
-  Widget _bottomBarItem({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
+  Widget _bottomBarItem({required IconData icon, required String label, required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,
       child: Padding(

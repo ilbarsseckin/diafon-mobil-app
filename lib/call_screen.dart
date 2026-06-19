@@ -32,6 +32,7 @@ class _CallScreenState extends State<CallScreen> {
   String? _callId;
   String _status = 'Bağlanıyor...';
   bool _connected = false;
+  bool _remoteSet = false; // remote description set edildi mi
 
   bool _micOn = true;
   bool _camOn = true;
@@ -74,7 +75,7 @@ class _CallScreenState extends State<CallScreen> {
       // bazı cihazlarda desteklenmeyebilir
     }
 
-    // Aranan kişi (ev sahibi): görüntü tercihine bak. Kapalıysa kamera kapalı başlasın.
+    // Alıcı: görüntü tercihine bak
     if (!widget.isCaller) {
       final showVideo = await ApiService.getVideoEnabled();
       if (!showVideo) {
@@ -109,6 +110,16 @@ class _CallScreenState extends State<CallScreen> {
       }
     };
 
+    // Socket bağlı değilse bağlan ve bekle (uygulama kapalıyken kabul durumu)
+    if (!SocketService.isConnected) {
+      await SocketService.connect();
+      int waited = 0;
+      while (!SocketService.isConnected && waited < 5000) {
+        await Future.delayed(const Duration(milliseconds: 200));
+        waited += 200;
+      }
+    }
+
     _setupSocketListeners();
 
     if (widget.isCaller) {
@@ -132,38 +143,26 @@ class _CallScreenState extends State<CallScreen> {
     return '$m:$s';
   }
 
-  Future<void> _captureAndUploadPhoto() async {
-    try {
-      await Future.delayed(const Duration(milliseconds: 600));
-      final videoTrack = _localStream?.getVideoTracks().first;
-      if (videoTrack == null) {
-        print('FOTO: videoTrack null');
-        return;
-      }
-      final buffer = await videoTrack.captureFrame();
-      final bytes = buffer.asUint8List();
-      print('FOTO: kare yakalandi ${bytes.length} byte, callId=$_callId');
-      final base64Str = 'data:image/jpeg;base64,${base64Encode(bytes)}';
-      final url = await ApiService.uploadCallPhoto(base64Str, callId: _callId);
-      print('FOTO: yuklendi url=$url');
-    } catch (e) {
-      print('FOTO HATA: $e');
-    }
-  }
   void _setupSocketListeners() {
     SocketService.on('call:ringing', (data) {
       _callId = data['callId'];
     });
 
+    // SADECE ARAYAN: kabul edildi -> offer yap
     SocketService.on('call:accepted', (data) async {
+      if (!widget.isCaller) return; // alıcı offer yapmaz
       _callId = data['callId'];
       await _createOffer();
     });
 
+    // SADECE ALICI: offer geldi -> answer yap
     SocketService.on('webrtc:offer', (data) async {
+      if (widget.isCaller) return; // arayan answer yapmaz
+      if (_pc == null) return;
       await _pc!.setRemoteDescription(
         RTCSessionDescription(data['sdp']['sdp'], data['sdp']['type']),
       );
+      _remoteSet = true;
       final answer = await _pc!.createAnswer();
       await _pc!.setLocalDescription(answer);
       SocketService.emit('webrtc:answer', {
@@ -173,17 +172,26 @@ class _CallScreenState extends State<CallScreen> {
       });
     });
 
+    // SADECE ARAYAN: answer geldi -> remote set
     SocketService.on('webrtc:answer', (data) async {
+      if (!widget.isCaller) return; // alıcı answer almaz
+      if (_pc == null) return;
       await _pc!.setRemoteDescription(
         RTCSessionDescription(data['sdp']['sdp'], data['sdp']['type']),
       );
+      _remoteSet = true;
     });
 
     SocketService.on('webrtc:ice', (data) async {
+      if (_pc == null) return;
       final c = data['candidate'];
-      await _pc!.addCandidate(RTCIceCandidate(
-        c['candidate'], c['sdpMid'], c['sdpMLineIndex'],
-      ));
+      try {
+        await _pc!.addCandidate(RTCIceCandidate(
+          c['candidate'], c['sdpMid'], c['sdpMLineIndex'],
+        ));
+      } catch (e) {
+        // remote henüz set edilmemişse ICE eklenemez, sessizce geç
+      }
     });
 
     SocketService.on('call:rejected', (_) {
@@ -203,6 +211,7 @@ class _CallScreenState extends State<CallScreen> {
   }
 
   Future<void> _createOffer() async {
+    if (_pc == null) return;
     final offer = await _pc!.createOffer();
     await _pc!.setLocalDescription(offer);
     SocketService.emit('webrtc:offer', {
@@ -295,7 +304,6 @@ class _CallScreenState extends State<CallScreen> {
                 ),
               ),
             ),
-
             if (_connected)
               Positioned(
                 top: 16, left: 0, right: 0,
@@ -311,7 +319,6 @@ class _CallScreenState extends State<CallScreen> {
                   ],
                 ),
               ),
-
             Positioned(
               top: _connected ? 70 : 16, right: 16,
               width: 110, height: 150,
@@ -325,36 +332,18 @@ class _CallScreenState extends State<CallScreen> {
                 ),
               ),
             ),
-
             Positioned(
               bottom: 40, left: 0, right: 0,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _controlButton(
-                    icon: _micOn ? Icons.mic : Icons.mic_off,
-                    color: _micOn ? Colors.white24 : Colors.red,
-                    onTap: _toggleMic,
-                  ),
+                  _controlButton(icon: _micOn ? Icons.mic : Icons.mic_off, color: _micOn ? Colors.white24 : Colors.red, onTap: _toggleMic),
                   const SizedBox(width: 16),
-                  _controlButton(
-                    icon: _camOn ? Icons.videocam : Icons.videocam_off,
-                    color: _camOn ? Colors.white24 : Colors.red,
-                    onTap: _toggleCam,
-                  ),
+                  _controlButton(icon: _camOn ? Icons.videocam : Icons.videocam_off, color: _camOn ? Colors.white24 : Colors.red, onTap: _toggleCam),
                   const SizedBox(width: 16),
-                  _controlButton(
-                    icon: Icons.cameraswitch,
-                    color: Colors.white24,
-                    onTap: _switchCamera,
-                  ),
+                  _controlButton(icon: Icons.cameraswitch, color: Colors.white24, onTap: _switchCamera),
                   const SizedBox(width: 16),
-                  _controlButton(
-                    icon: Icons.call_end,
-                    color: Colors.red,
-                    onTap: () => _endCall(),
-                    big: true,
-                  ),
+                  _controlButton(icon: Icons.call_end, color: Colors.red, onTap: () => _endCall(), big: true),
                 ],
               ),
             ),
@@ -364,12 +353,7 @@ class _CallScreenState extends State<CallScreen> {
     );
   }
 
-  Widget _controlButton({
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-    bool big = false,
-  }) {
+  Widget _controlButton({required IconData icon, required Color color, required VoidCallback onTap, bool big = false}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(

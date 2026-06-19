@@ -9,7 +9,13 @@ class SocketService {
 
   // Sunucudaki Socket.IO gateway'e baglan
   static Future<void> connect() async {
-    if (_socket != null && _socket!.connected) return;
+    // Zaten socket nesnesi varsa: bağlı değilse tekrar bağlanmayı dene, yeni nesne OLUŞTURMA
+    if (_socket != null) {
+      if (!_socket!.connected) {
+        _socket!.connect();
+      }
+      return;
+    }
 
     final token = await ApiService.getToken();
     if (token == null) return;
@@ -19,33 +25,34 @@ class SocketService {
       io.OptionBuilder()
           .setTransports(['websocket'])
           .setAuth({'token': token})
-          .enableForceNew()
+          .enableReconnection()
+          .setReconnectionAttempts(10)
+          .setReconnectionDelay(1000)
           .build(),
     );
 
     _socket!.onConnect((_) => print('Socket baglandi'));
     _socket!.onDisconnect((_) => print('Socket koptu'));
     _socket!.onConnectError((e) => print('Socket hata: $e'));
+    _socket!.onReconnect((_) => print('Socket yeniden baglandi'));
 
     _socket!.connect();
   }
 
   static void disconnect() {
     _socket?.disconnect();
+    _socket?.dispose();
     _socket = null;
   }
 
-  // Olay dinle
   static void on(String event, Function(dynamic) handler) {
     _socket?.on(event, handler);
   }
 
-  // Olay dinlemeyi birak
   static void off(String event) {
     _socket?.off(event);
   }
 
-  // Olay gonder
   static void emit(String event, dynamic data) {
     _socket?.emit(event, data);
   }

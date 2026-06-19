@@ -6,11 +6,13 @@ class CallKitService {
     required String callId,
     required String callerName,
     required String callerUserId,
+    String? callerPhotoUrl,
   }) async {
     final params = CallKitParams(
       id: callId,
       nameCaller: callerName,
       appName: 'Diafon',
+      avatar: (callerPhotoUrl != null && callerPhotoUrl.isNotEmpty) ? callerPhotoUrl : null,
       handle: 'Gelen Çağrı',
       type: 1,
       duration: 30000,
@@ -18,6 +20,7 @@ class CallKitService {
         'callId': callId,
         'callerUserId': callerUserId,
         'callerName': callerName,
+        'callerPhoto': callerPhotoUrl ?? '',
       },
       android: const AndroidParams(
         isCustomNotification: true,
