@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'api_service.dart';
 import 'add_building_screen.dart';
+import 'qr_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -32,7 +33,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final v = await ApiService.getVideoEnabled();
     final p = await ApiService.getPhotoUrl();
     setState(() { _videoEnabled = v; _photoUrl = p; });
-    // Güncel profil bilgilerini çek
     try {
       final me = await ApiService.getMe();
       _nameCtrl.text = me['name']?.toString() ?? '';
@@ -174,7 +174,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                // Telefon - değiştirilemez (kimlik)
                 TextField(
                   enabled: false,
                   decoration: InputDecoration(
@@ -237,6 +236,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const AddBuildingScreen()),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.qr_code_2, color: Color(0xFFE63946)),
+            title: const Text('QR Kodlarım'),
+            subtitle: const Text('Bina, daire ve kişisel QR kodları'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const QrScreen()),
               );
             },
           ),
