@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'api_service.dart';
+import 'add_building_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -137,6 +138,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _videoEnabled ? Icons.videocam : Icons.videocam_off,
               color: const Color(0xFFE63946),
             ),
+          ),
+          const Divider(),
+          // Binam
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Text('Binam', style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w600)),
+          ),
+          ListTile(
+            leading: const Icon(Icons.add_home, color: Color(0xFFE63946)),
+            title: const Text('Evimi Ekle / Binaya Katıl'),
+            subtitle: const Text('Yeni bir binaya kaydol'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AddBuildingScreen()),
+              );
+            },
           ),
         ],
       ),

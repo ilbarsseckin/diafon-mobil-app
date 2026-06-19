@@ -502,33 +502,8 @@ class _HomeScreenState extends State<HomeScreen> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: const Icon(Icons.add_home),
-            tooltip: 'Evimi Ekle',
-            onPressed: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AddBuildingScreen()),
-              );
-              if (result == true) _loadNearby();
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.qr_code_scanner),
-            tooltip: 'QR Okut',
-            onPressed: _scanQr,
-          ),
-          IconButton(
-            icon: const Icon(Icons.history),
-            tooltip: 'Çağrı Geçmişi',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const CallHistoryScreen()),
-              );
-            },
-          ),
-          IconButton(
             icon: const Icon(Icons.settings),
+            tooltip: 'Ayarlar',
             onPressed: () {
               Navigator.push(
                 context,
@@ -538,6 +513,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.logout),
+            tooltip: 'Çıkış',
             onPressed: () async {
               SocketService.disconnect();
               await ApiService.logout();
@@ -551,6 +527,68 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       body: _buildBody(),
+      // ORTADA YÜZEN BÜYÜK QR BUTONU
+      floatingActionButton: FloatingActionButton(
+        onPressed: _scanQr,
+        backgroundColor: const Color(0xFFE63946),
+        shape: const CircleBorder(),
+        child: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 30),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      // ALT BAR
+      bottomNavigationBar: BottomAppBar(
+        shape: const CircularNotchedRectangle(),
+        notchMargin: 8,
+        color: Colors.white,
+        child: SizedBox(
+          height: 56,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              // Ana Sayfa
+              _bottomBarItem(
+                icon: Icons.home,
+                label: 'Ana Sayfa',
+                onTap: _loadNearby,
+              ),
+              const SizedBox(width: 48), // ortadaki QR butonu için boşluk
+              // Çağrı Geçmişi
+              _bottomBarItem(
+                icon: Icons.history,
+                label: 'Geçmiş',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const CallHistoryScreen()),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Alt bar öğesi
+  Widget _bottomBarItem({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: const Color(0xFFE63946), size: 24),
+            const SizedBox(height: 2),
+            Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFFE63946))),
+          ],
+        ),
+      ),
     );
   }
 
