@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'api_service.dart';
+import 'qr_scan_screen.dart';
 
 class AddBuildingScreen extends StatefulWidget {
   const AddBuildingScreen({super.key});
@@ -78,6 +79,82 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
     }
   }
 
+  // QR ile katıl: QR okut -> daire sor -> katıl
+  Future<void> _joinByQr() async {
+    final qrToken = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const QrScanScreen()),
+    );
+    if (qrToken == null || qrToken.isEmpty) return;
+
+    Map<String, dynamic> info;
+    try {
+      info = await ApiService.nearbyByQr(qrToken);
+    } catch (e) {
+      if (mounted) _toast('QR okunamadı');
+      return;
+    }
+    if (info['building'] == null) {
+      if (mounted) _toast(info['message']?.toString() ?? 'Geçersiz QR kod');
+      return;
+    }
+    final buildingName = info['building']['buildingName']?.toString() ?? 'Bina';
+
+    if (!mounted) return;
+    final flatCtrl = TextEditingController();
+    final floorCtrl = TextEditingController();
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('$buildingName binasına katıl'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: flatCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Daire No *', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: floorCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Kat', border: OutlineInputBorder()),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('İptal')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFE63946)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Katıl'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != true) return;
+    if (flatCtrl.text.trim().isEmpty) {
+      if (mounted) _toast('Daire no girin');
+      return;
+    }
+
+    try {
+      final res = await ApiService.joinByQr(
+        qrToken: qrToken,
+        flatNo: flatCtrl.text.trim(),
+        floor: floorCtrl.text.trim().isEmpty ? null : floorCtrl.text.trim(),
+      );
+      if (mounted) {
+        _toast(res['message']?.toString() ?? 'Katıldınız');
+        if (res['success'] == true) Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) _toast(e.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
   void _toast(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg)),
@@ -96,9 +173,24 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
           ? const Center(child: CircularProgressIndicator(color: Color(0xFFE63946)))
           : Column(
         children: [
+          // QR ile katıl (en hızlı yol)
+          Container(
+            width: double.infinity,
+            color: const Color(0xFFE63946).withValues(alpha: 0.06),
+            padding: const EdgeInsets.all(12),
+            child: OutlinedButton.icon(
+              onPressed: _joinByQr,
+              icon: const Icon(Icons.qr_code_scanner, color: Color(0xFFE63946)),
+              label: const Text('Binadaki QR ile Hızlı Katıl', style: TextStyle(color: Color(0xFFE63946))),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFFE63946)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
           // Harita
           SizedBox(
-            height: 260,
+            height: 240,
             child: Stack(
               children: [
                 GoogleMap(

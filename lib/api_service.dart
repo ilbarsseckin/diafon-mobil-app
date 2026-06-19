@@ -202,4 +202,25 @@ class ApiService {
     if (path.startsWith('http')) return path;
     return 'http://128.140.127.151:4000$path';
   }
+  // --- QR token ile binaya katıl ---
+  static Future<Map<String, dynamic>> joinByQr({
+    required String qrToken,
+    required String flatNo,
+    String? floor,
+  }) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/buildings/join-by-qr'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'qrToken': qrToken,
+        'flatNo': flatNo,
+        'floor': floor,
+      }),
+    );
+    return _handle(res);
+  }
 }
