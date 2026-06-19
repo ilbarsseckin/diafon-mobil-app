@@ -123,38 +123,64 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
+// Akış aşamaları
+enum _LoginStep { phone, name, otp }
+
 class _LoginScreenState extends State<LoginScreen> {
   final _nameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _codeCtrl = TextEditingController();
 
-  bool _otpSent = false;
+  _LoginStep _step = _LoginStep.phone;
   bool _loading = false;
   String? _error;
 
-  Future<void> _sendOtp() async {
+  // 1. Telefon girildi -> kayıtlı mı kontrol et
+  Future<void> _continuePhone() async {
+    final phone = _phoneCtrl.text.trim();
+    if (phone.length < 10) {
+      setState(() => _error = 'Geçerli bir telefon numarası girin');
+      return;
+    }
     setState(() { _loading = true; _error = null; });
     try {
-      final phone = _phoneCtrl.text.trim();
-      final name = _nameCtrl.text.trim();
-      if (name.isNotEmpty) {
-        try {
-          await ApiService.register(name, phone);
-        } catch (e) {
-          await ApiService.login(phone);
-        }
-      } else {
-        await ApiService.login(phone);
-      }
-      setState(() { _otpSent = true; });
+      // Kayıtlı kullanıcı mı? login dene
+      await ApiService.login(phone);
+      // Başarılı -> kayıtlı, OTP gönderildi
+      setState(() { _step = _LoginStep.otp; _loading = false; });
     } catch (e) {
-      setState(() { _error = e.toString().replaceAll('Exception: ', ''); });
-    } finally {
-      setState(() { _loading = false; });
+      final msg = e.toString();
+      if (msg.contains('kayıtlı değil')) {
+        // Yeni kullanıcı -> isim iste
+        setState(() { _step = _LoginStep.name; _loading = false; });
+      } else {
+        setState(() { _error = msg.replaceAll('Exception: ', ''); _loading = false; });
+      }
     }
   }
 
+  // 2. İsim girildi (yeni kullanıcı) -> kayıt + OTP
+  Future<void> _continueName() async {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) {
+      setState(() => _error = 'Adınızı girin');
+      return;
+    }
+    setState(() { _loading = true; _error = null; });
+    try {
+      await ApiService.register(name, _phoneCtrl.text.trim());
+      setState(() { _step = _LoginStep.otp; _loading = false; });
+    } catch (e) {
+      setState(() { _error = e.toString().replaceAll('Exception: ', ''); _loading = false; });
+    }
+  }
+
+  // 3. OTP doğrula -> giriş
   Future<void> _verify() async {
+    if (_codeCtrl.text.trim().isEmpty) {
+      setState(() => _error = 'Doğrulama kodunu girin');
+      return;
+    }
     setState(() { _loading = true; _error = null; });
     try {
       final data = await ApiService.verify(_phoneCtrl.text.trim(), _codeCtrl.text.trim());
@@ -175,15 +201,51 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } catch (e) {
-      setState(() { _error = e.toString().replaceAll('Exception: ', ''); });
-    } finally {
-      setState(() { _loading = false; });
+      setState(() { _error = e.toString().replaceAll('Exception: ', ''); _loading = false; });
+    }
+  }
+
+  void _back() {
+    setState(() {
+      _error = null;
+      if (_step == _LoginStep.otp) {
+        _step = _nameCtrl.text.trim().isEmpty ? _LoginStep.phone : _LoginStep.name;
+        _codeCtrl.clear();
+      } else if (_step == _LoginStep.name) {
+        _step = _LoginStep.phone;
+        _nameCtrl.clear();
+      }
+    });
+  }
+
+  String get _title {
+    switch (_step) {
+      case _LoginStep.phone: return 'Telefon numaranızı girin';
+      case _LoginStep.name: return 'Hoş geldiniz! Adınızı girin';
+      case _LoginStep.otp: return 'Doğrulama kodunu girin';
+    }
+  }
+
+  String get _buttonText {
+    switch (_step) {
+      case _LoginStep.phone: return 'Devam';
+      case _LoginStep.name: return 'Devam';
+      case _LoginStep.otp: return 'Giriş Yap';
+    }
+  }
+
+  VoidCallback get _action {
+    switch (_step) {
+      case _LoginStep.phone: return _continuePhone;
+      case _LoginStep.name: return _continueName;
+      case _LoginStep.otp: return _verify;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -192,70 +254,95 @@ class _LoginScreenState extends State<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Icon(Icons.doorbell, size: 64, color: Color(0xFFE63946)),
-                const SizedBox(height: 16),
+                // Logo
+                Container(
+                  width: 90, height: 90,
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE63946).withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.doorbell, size: 48, color: Color(0xFFE63946)),
+                ),
                 const Text('Diafon',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Text(
-                  _otpSent ? 'Telefonunuza gelen kodu girin' : 'Telefon numaranızla giriş yapın',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
-                const SizedBox(height: 32),
-                if (!_otpSent) ...[
-                  TextField(
-                    controller: _nameCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Ad Soyad (yeni üyelik için)',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.person),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+                    style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Color(0xFFE63946))),
+                const SizedBox(height: 6),
+                Text(_title,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey[600], fontSize: 15)),
+                const SizedBox(height: 36),
+
+                // Aşamaya göre alan
+                if (_step == _LoginStep.phone)
                   TextField(
                     controller: _phoneCtrl,
                     keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(
-                      labelText: 'Telefon (05xxxxxxxxx)',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.phone),
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      labelText: 'Telefon',
+                      hintText: '05xxxxxxxxx',
+                      prefixIcon: const Icon(Icons.phone),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
-                ] else ...[
+                if (_step == _LoginStep.name)
+                  TextField(
+                    controller: _nameCtrl,
+                    autofocus: true,
+                    keyboardType: TextInputType.name,
+                    textInputAction: TextInputAction.done,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: InputDecoration(
+                      labelText: 'Ad Soyad',
+                      prefixIcon: const Icon(Icons.person),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                if (_step == _LoginStep.otp)
                   TextField(
                     controller: _codeCtrl,
                     keyboardType: TextInputType.number,
+                    autofocus: true,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 24, letterSpacing: 8),
-                    decoration: const InputDecoration(
-                      labelText: 'Doğrulama Kodu',
-                      border: OutlineInputBorder(),
+                    style: const TextStyle(fontSize: 26, letterSpacing: 8, fontWeight: FontWeight.bold),
+                    decoration: InputDecoration(
+                      hintText: '______',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
-                ],
+
                 if (_error != null) ...[
                   const SizedBox(height: 16),
                   Text(_error!, style: const TextStyle(color: Colors.red), textAlign: TextAlign.center),
                 ],
+
                 const SizedBox(height: 24),
                 FilledButton(
-                  onPressed: _loading ? null : (_otpSent ? _verify : _sendOtp),
+                  onPressed: _loading ? null : _action,
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFFE63946),
                     padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   child: _loading
                       ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : Text(_otpSent ? 'Doğrula' : 'Kod Gönder', style: const TextStyle(fontSize: 16)),
+                      : Text(_buttonText, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                 ),
-                if (_otpSent) ...[
+
+                if (_step != _LoginStep.phone) ...[
                   const SizedBox(height: 12),
                   TextButton(
-                    onPressed: () => setState(() { _otpSent = false; _codeCtrl.clear(); }),
-                    child: const Text('Geri'),
+                    onPressed: _loading ? null : _back,
+                    child: const Text('Geri', style: TextStyle(color: Colors.grey)),
                   ),
+                ],
+
+                if (_step == _LoginStep.otp) ...[
+                  const SizedBox(height: 4),
+                  Text('${_phoneCtrl.text} numarasına kod gönderildi',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey[500], fontSize: 13)),
                 ],
               ],
             ),
@@ -265,7 +352,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
-
 class HomeScreen extends StatefulWidget {
   final String userName;
   final bool autoAddBuilding;

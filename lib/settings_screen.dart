@@ -15,7 +15,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _videoEnabled = true;
   bool _loading = true;
   bool _uploadingPhoto = false;
+  bool _savingProfile = false;
   String? _photoUrl;
+
+  final _nameCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  String _phone = '';
 
   @override
   void initState() {
@@ -26,12 +31,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _load() async {
     final v = await ApiService.getVideoEnabled();
     final p = await ApiService.getPhotoUrl();
-    setState(() { _videoEnabled = v; _photoUrl = p; _loading = false; });
+    setState(() { _videoEnabled = v; _photoUrl = p; });
+    // Güncel profil bilgilerini çek
+    try {
+      final me = await ApiService.getMe();
+      _nameCtrl.text = me['name']?.toString() ?? '';
+      _emailCtrl.text = me['email']?.toString() ?? '';
+      _phone = me['phone']?.toString() ?? '';
+      if (me['photoUrl'] != null) _photoUrl = me['photoUrl']?.toString();
+    } catch (_) {}
+    setState(() => _loading = false);
   }
 
   Future<void> _toggleVideo(bool value) async {
     setState(() => _videoEnabled = value);
     await ApiService.setVideoEnabled(value);
+  }
+
+  Future<void> _saveProfile() async {
+    if (_nameCtrl.text.trim().isEmpty) {
+      _toast('Ad soyad boş olamaz');
+      return;
+    }
+    setState(() => _savingProfile = true);
+    try {
+      await ApiService.updateProfile(
+        name: _nameCtrl.text.trim(),
+        email: _emailCtrl.text.trim(),
+      );
+      if (mounted) _toast('Profil güncellendi');
+    } catch (e) {
+      if (mounted) _toast('Güncellenemedi');
+    } finally {
+      if (mounted) setState(() => _savingProfile = false);
+    }
   }
 
   Future<void> _pickPhoto() async {
@@ -53,18 +86,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _uploadingPhoto = false;
       });
       if (mounted && url != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profil fotoğrafı güncellendi')),
-        );
+        _toast('Profil fotoğrafı güncellendi');
       }
     } catch (e) {
       setState(() => _uploadingPhoto = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Fotoğraf yüklenemedi')),
-        );
-      }
+      if (mounted) _toast('Fotoğraf yüklenemedi');
     }
+  }
+
+  void _toast(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   @override
@@ -109,11 +140,63 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 TextButton.icon(
                   onPressed: _uploadingPhoto ? null : _pickPhoto,
                   icon: const Icon(Icons.photo_camera, color: Color(0xFFE63946)),
                   label: const Text('Fotoğraf Seç', style: TextStyle(color: Color(0xFFE63946))),
+                ),
+              ],
+            ),
+          ),
+          // Ad soyad / email / telefon
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              children: [
+                TextField(
+                  controller: _nameCtrl,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: InputDecoration(
+                    labelText: 'Ad Soyad',
+                    prefixIcon: const Icon(Icons.person),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _emailCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    labelText: 'E-posta (opsiyonel)',
+                    prefixIcon: const Icon(Icons.email),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Telefon - değiştirilemez (kimlik)
+                TextField(
+                  enabled: false,
+                  decoration: InputDecoration(
+                    labelText: 'Telefon (değiştirilemez)',
+                    hintText: _phone,
+                    prefixIcon: const Icon(Icons.phone),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: _savingProfile ? null : _saveProfile,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFE63946),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: _savingProfile
+                        ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : const Text('Profili Kaydet'),
+                  ),
                 ),
               ],
             ),
@@ -157,6 +240,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               );
             },
           ),
+          const SizedBox(height: 20),
         ],
       ),
     );

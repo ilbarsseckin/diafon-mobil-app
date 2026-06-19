@@ -234,4 +234,36 @@ class ApiService {
     }
     return [];
   }
+
+  // --- Profilim (güncel bilgiler) ---
+  static Future<Map<String, dynamic>> getMe() async {
+    final token = await getToken();
+    final res = await http.get(
+      Uri.parse('$baseUrl/auth/me'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return _handle(res);
+  }
+
+  // --- Profil güncelle (isim + email) ---
+  static Future<Map<String, dynamic>> updateProfile({String? name, String? email}) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/auth/update-profile'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        if (name != null) 'name': name,
+        if (email != null) 'email': email,
+      }),
+    );
+    final data = _handle(res);
+    // İsim değiştiyse storage'daki ismi de güncelle
+    if (data['user'] != null && data['user']['name'] != null) {
+      await storage.write(key: 'userName', value: data['user']['name']);
+    }
+    return data;
+  }
 }
