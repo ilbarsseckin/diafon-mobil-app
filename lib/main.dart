@@ -462,6 +462,9 @@ class _HomeScreenState extends State<HomeScreen> {
         caller['photoUrl']?.toString(),
       );
     });
+    SocketService.on('call:taken', (data) {
+      FlutterCallkitIncoming.endAllCalls();
+    });
   }
 
   void _showIncomingCall(String callerName, String callerId, String callId, [String? photoUrl]) {
