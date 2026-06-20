@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'api_service.dart';
 import 'add_building_screen.dart';
+import 'manager_screen.dart';
 import 'qr_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -251,9 +252,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
               );
             },
           ),
+          ListTile(
+            leading: const Icon(Icons.admin_panel_settings, color: Color(0xFFE63946)),
+            title: const Text('Bina Yönetimi'),
+            subtitle: const Text('Katılım isteklerini onayla (yönetici)'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ManagerScreen()),
+              );
+            },
+          ),
           const SizedBox(height: 20),
         ],
       ),
     );
   }
+
+
 }

@@ -444,7 +444,18 @@ class _HomeScreenState extends State<HomeScreen> {
       } else if (event is CallEventActionCallDecline) {
         final extra = event.callKitParams.extra ?? {};
         final callId = (extra['callId'] ?? event.callKitParams.id ?? '').toString();
-        SocketService.emit('call:reject', {'callId': callId});
+        // Socket bağlı değilse bağlan, sonra reddi gönder
+        () async {
+          if (!SocketService.isConnected) {
+            await SocketService.connect();
+            int waited = 0;
+            while (!SocketService.isConnected && waited < 3000) {
+              await Future.delayed(const Duration(milliseconds: 200));
+              waited += 200;
+            }
+          }
+          SocketService.emit('call:reject', {'callId': callId});
+        }();
       }
     });
   }

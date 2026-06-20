@@ -266,4 +266,57 @@ class ApiService {
     }
     return data;
   }
+
+  // --- YÖNETİCİ: bekleyen sakinler ---
+  static Future<Map<String, dynamic>> pendingResidents() async {
+    final token = await getToken();
+    final res = await http.get(
+      Uri.parse('$baseUrl/buildings/pending-residents'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return _handle(res);
+  }
+
+  // --- YÖNETİCİ: sakini onayla ---
+  static Future<Map<String, dynamic>> approveResident(String residentId) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/buildings/approve-resident'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      body: jsonEncode({'residentId': residentId}),
+    );
+    return _handle(res);
+  }
+
+  // --- YÖNETİCİ: sakini reddet/sil ---
+  static Future<Map<String, dynamic>> rejectResident(String residentId) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/buildings/reject-resident'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      body: jsonEncode({'residentId': residentId}),
+    );
+    return _handle(res);
+  }
+
+  // --- YÖNETİCİ: yapı kur (site + bloklar) ---
+  static Future<Map<String, dynamic>> createStructure({
+    String? siteName,
+    required double latitude,
+    required double longitude,
+    required List<Map<String, dynamic>> blocks,
+  }) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/buildings/create-structure'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      body: jsonEncode({
+        if (siteName != null && siteName.isNotEmpty) 'siteName': siteName,
+        'latitude': latitude,
+        'longitude': longitude,
+        'blocks': blocks,
+      }),
+    );
+    return _handle(res);
+  }
 }
