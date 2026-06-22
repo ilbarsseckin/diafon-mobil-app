@@ -1,3 +1,4 @@
+import 'package:diafon_mobil_app/security_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -656,19 +657,41 @@ class _HomeScreenState extends State<HomeScreen> {
         child: SizedBox(
           height: 56,
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _bottomBarItem(icon: Icons.home, label: 'Ana Sayfa', onTap: _loadNearby),
-              const SizedBox(width: 48),
-              _bottomBarItem(
-                icon: Icons.history,
-                label: 'Geçmiş',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const CallHistoryScreen()),
-                  );
-                },
+              Expanded(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _bottomBarItem(
+                      icon: Icons.shield,
+                      label: 'Güvenlik',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const SecurityScreen()),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 48), // ortadaki QR FAB için boşluk (notch)
+              Expanded(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _bottomBarItem(
+                      icon: Icons.history,
+                      label: 'Geçmiş',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const CallHistoryScreen()),
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

@@ -5,6 +5,7 @@ import 'api_service.dart';
 import 'add_building_screen.dart';
 import 'manager_screen.dart';
 import 'qr_screen.dart';
+import 'notes_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -229,6 +230,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Text('Binam', style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w600)),
           ),
           ListTile(
+            leading: const Icon(Icons.notifications_active, color: Color(0xFFE63946)),
+            title: const Text('Notlar'),
+            subtitle: const Text('Güvenlik ve yönetimden gelen notlar'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const NotesScreen()),
+              );
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.add_home, color: Color(0xFFE63946)),
             title: const Text('Evimi Ekle / Binaya Katıl'),
             subtitle: const Text('Yeni bir binaya kaydol'),
@@ -269,6 +282,4 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
-
-
 }

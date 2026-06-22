@@ -319,4 +319,37 @@ class ApiService {
     );
     return _handle(res);
   }
+  // --- SAKIN: kendi dairemin notları ---
+  static Future<Map<String, dynamic>> myNotes() async {
+    final token = await getToken();
+    final res = await http.get(
+      Uri.parse('$baseUrl/buildings/my-notes'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return _handle(res);
+  }
+
+  // --- SAKIN: daireye not gönder ---
+  static Future<Map<String, dynamic>> sendNote(String apartmentId, String text) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/buildings/add-note'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      body: jsonEncode({'apartmentId': apartmentId, 'text': text}),
+    );
+    return _handle(res);
+  }
+
+  // --- SAKIN: notları okundu işaretle ---
+  static Future<void> markNotesRead() async {
+    final token = await getToken();
+    try {
+      await http.post(
+        Uri.parse('$baseUrl/buildings/mark-notes-read'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+    } catch (e) {
+      // sessizce geç
+    }
+  }
 }

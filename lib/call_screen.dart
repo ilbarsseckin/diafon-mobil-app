@@ -10,6 +10,7 @@ class CallScreen extends StatefulWidget {
   final String peerName;
   final bool isCaller;
   final String? incomingCallId;
+  final String callType; // 'user' (varsayilan) veya 'security'
 
   const CallScreen({
     super.key,
@@ -17,6 +18,7 @@ class CallScreen extends StatefulWidget {
     required this.peerName,
     required this.isCaller,
     this.incomingCallId,
+    this.callType = 'user',
   });
 
   @override
@@ -30,6 +32,7 @@ class _CallScreenState extends State<CallScreen> {
   RTCPeerConnection? _pc;
   MediaStream? _localStream;
   String? _callId;
+  late String _peerId = widget.peerUserId; // guvenlikte accepterId ile guncellenir
   String _status = 'Bağlanıyor...';
   bool _connected = false;
   bool _remoteSet = false; // remote description set edildi mi
@@ -103,7 +106,7 @@ class _CallScreenState extends State<CallScreen> {
     _pc!.onIceCandidate = (candidate) {
       if (_callId != null) {
         SocketService.emit('webrtc:ice', {
-          'toUserId': widget.peerUserId,
+          'toUserId': _peerId,
           'callId': _callId,
           'candidate': candidate.toMap(),
         });
@@ -152,6 +155,7 @@ class _CallScreenState extends State<CallScreen> {
     SocketService.on('call:accepted', (data) async {
       if (!widget.isCaller) return; // alıcı offer yapmaz
       _callId = data['callId'];
+      if (data['accepterId'] != null) _peerId = data['accepterId'];
       await _createOffer();
     });
 
@@ -166,7 +170,7 @@ class _CallScreenState extends State<CallScreen> {
       final answer = await _pc!.createAnswer();
       await _pc!.setLocalDescription(answer);
       SocketService.emit('webrtc:answer', {
-        'toUserId': widget.peerUserId,
+        'toUserId': _peerId,
         'callId': _callId,
         'sdp': {'sdp': answer.sdp, 'type': answer.type},
       });
@@ -200,14 +204,19 @@ class _CallScreenState extends State<CallScreen> {
     });
     SocketService.on('call:ended', (_) => _endCall(notify: false));
     SocketService.on('call:unavailable', (data) {
-      setState(() => _status = 'Kullanıcı çevrimdışı');
+      setState(() => _status = (data is Map && data['reason'] != null) ? data['reason'] : 'Ulaşılamıyor');
       Future.delayed(const Duration(seconds: 2), () => _endCall(notify: false));
     });
   }
 
   void _startCall() {
-    setState(() { _status = '${widget.peerName} aranıyor...'; });
-    SocketService.emit('call:start', {'receiverUserId': widget.peerUserId});
+    if (widget.callType == 'security') {
+      setState(() { _status = 'Güvenlik aranıyor...'; });
+      SocketService.emit('call:start-security', {});
+    } else {
+      setState(() { _status = '${widget.peerName} aranıyor...'; });
+      SocketService.emit('call:start', {'receiverUserId': widget.peerUserId});
+    }
   }
 
   Future<void> _createOffer() async {
@@ -215,7 +224,7 @@ class _CallScreenState extends State<CallScreen> {
     final offer = await _pc!.createOffer();
     await _pc!.setLocalDescription(offer);
     SocketService.emit('webrtc:offer', {
-      'toUserId': widget.peerUserId,
+      'toUserId': _peerId,
       'callId': _callId,
       'sdp': {'sdp': offer.sdp, 'type': offer.type},
     });
