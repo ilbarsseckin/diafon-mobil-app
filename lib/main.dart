@@ -8,6 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'dart:async';
 import 'add_building_screen.dart';
 import 'api_service.dart';
+import 'homes_screen.dart';
 import 'socket_service.dart';
 import 'call_screen.dart';
 import 'settings_screen.dart';
@@ -688,6 +689,25 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
+                    _bottomBarItem(
+                      icon: Icons.home,
+                      label: 'Evlerim',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => Scaffold(
+                              appBar: AppBar(
+                                title: const Text('Evlerim'),
+                                backgroundColor: const Color(0xFFE63946),
+                                foregroundColor: Colors.white,
+                              ),
+                              body: const HomesScreen(),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                     _bottomBarItem(
                       icon: Icons.shield,
                       label: 'Güvenlik',

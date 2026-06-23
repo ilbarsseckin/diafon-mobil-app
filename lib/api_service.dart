@@ -141,6 +141,19 @@ class ApiService {
     );
     return _handle(res);
   }
+  // --- SAKIN: tüm evlerim (çoklu ev) ---
+  static Future<List<dynamic>> myHomes() async {
+    final token = await getToken();
+    final res = await http.get(
+      Uri.parse('$baseUrl/buildings/my-homes'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      if (body is Map && body['homes'] is List) return body['homes'];
+    }
+    return [];
+  }
 
   // --- Sakin: evini ekle / binaya katıl ---
   static Future<Map<String, dynamic>> joinBuilding({
