@@ -1,4 +1,3 @@
-import 'package:diafon_mobil_app/security_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -21,6 +20,10 @@ import 'call_history_screen.dart';
 @pragma('vm:entry-point')
 Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
   final data = message.data;
+  if (data['type'] == 'call_cancelled') {
+    await FlutterCallkitIncoming.endAllCalls();
+    return;
+  }
   if (data['type'] == 'incoming_call') {
     final photo = (data['callerPhoto'] ?? '').toString();
     final fullPhoto = (photo.isNotEmpty && !photo.startsWith('http'))
@@ -463,6 +466,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _initSocket() async {
     await PushService.init();
+    // Uygulama ACIKKEN gelen FCM (iptal vb.)
+    FirebaseMessaging.onMessage.listen((message) {
+      final data = message.data;
+      if (data['type'] == 'call_cancelled') {
+        FlutterCallkitIncoming.endAllCalls();
+      }
+    });
     await SocketService.connect();
     SocketService.on('call:incoming', (data) {
       final caller = data['caller'];
@@ -609,6 +619,22 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _callSecurity() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        // Güvenlik çağrısı: tek bir peer yok, binanın güvenliklerine gider.
+        // CallScreen callType='security' iken 'call:start-security' emit eder.
+        builder: (_) => const CallScreen(
+          peerUserId: '',
+          peerName: 'Güvenlik',
+          isCaller: true,
+          callType: 'security',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -665,12 +691,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     _bottomBarItem(
                       icon: Icons.shield,
                       label: 'Güvenlik',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const SecurityScreen()),
-                        );
-                      },
+                      onTap: _callSecurity,
                     ),
                   ],
                 ),
