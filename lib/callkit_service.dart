@@ -7,6 +7,7 @@ class CallKitService {
     required String callerName,
     required String callerUserId,
     String? callerPhotoUrl,
+    String? buildingId,
   }) async {
     final params = CallKitParams(
       id: callId,
@@ -21,6 +22,7 @@ class CallKitService {
         'callerUserId': callerUserId,
         'callerName': callerName,
         'callerPhoto': callerPhotoUrl ?? '',
+        'buildingId': buildingId ?? '',
       },
       android: const AndroidParams(
         isCustomNotification: true,

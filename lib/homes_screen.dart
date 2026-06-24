@@ -38,12 +38,12 @@ class _HomesScreenState extends State<HomesScreen> {
     }
   }
 
-  void _call(String userId, String name) {
+  void _call(String userId, String name, String? buildingId) {
     if (userId.isEmpty) return;
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => CallScreen(peerUserId: userId, peerName: name, isCaller: true),
+        builder: (_) => CallScreen(peerUserId: userId, peerName: name, isCaller: true, buildingId: buildingId),
       ),
     );
   }
@@ -193,7 +193,7 @@ class _HomesScreenState extends State<HomesScreen> {
           // Evim (kendi dairesindeki sakinler)
           if (residents.isNotEmpty) ...[
             _sectionTitle('Evim', Icons.people),
-            ...residents.map((r) => _residentTile(r, 'Daire ${h['flatNo']}')),
+            ...residents.map((r) => _residentTile(r, 'Daire ${h['flatNo']}', h['buildingId'] as String?)),
             const SizedBox(height: 20),
           ],
 
@@ -209,7 +209,7 @@ class _HomesScreenState extends State<HomesScreen> {
               final flat = f as Map<String, dynamic>;
               final flatResidents = (flat['residents'] as List?) ?? [];
               final blockLabel = flat['blockName'] != null ? '${flat['blockName']} Blok ' : '';
-              return flatResidents.map((r) => _residentTile(r, '${blockLabel}Daire ${flat['flatNo']}'));
+              return flatResidents.map((r) => _residentTile(r, '${blockLabel}Daire ${flat['flatNo']}', flat['buildingId'] as String? ?? h['buildingId'] as String?));
             }),
         ],
       ),
@@ -229,7 +229,7 @@ class _HomesScreenState extends State<HomesScreen> {
     );
   }
 
-  Widget _residentTile(dynamic r, String sub) {
+  Widget _residentTile(dynamic r, String sub, String? buildingId) {
     final res = r as Map<String, dynamic>;
     final isOnline = res['isOnline'] == true;
     final photoUrl = res['photoUrl'] as String?;
@@ -250,7 +250,7 @@ class _HomesScreenState extends State<HomesScreen> {
         title: Text(res['name'] ?? 'İsimsiz', style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text(sub),
         trailing: FilledButton.tonalIcon(
-          onPressed: () => _call(res['userId'] ?? '', res['name'] ?? ''),
+          onPressed: () => _call(res['userId'] ?? '', res['name'] ?? '', buildingId),
           icon: const Icon(Icons.call, size: 18),
           label: const Text('Ara'),
         ),

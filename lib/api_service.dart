@@ -154,7 +154,30 @@ class ApiService {
     }
     return [];
   }
+// --- Binanın kapıları ---
+  static Future<List<dynamic>> getDoors(String buildingId) async {
+    final token = await getToken();
+    final res = await http.get(
+      Uri.parse('$baseUrl/door/list/$buildingId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      if (body is Map && body['doors'] is List) return body['doors'];
+    }
+    return [];
+  }
 
+  // --- Kapıyı aç (doorId ile) ---
+  static Future<Map<String, dynamic>> openDoor(String doorId, {String? callId}) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/door/open'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      body: jsonEncode({'doorId': doorId, if (callId != null) 'callId': callId}),
+    );
+    return _handle(res);
+  }
   // --- Sakin: evini ekle / binaya katıl ---
   static Future<Map<String, dynamic>> joinBuilding({
     required String buildingName,

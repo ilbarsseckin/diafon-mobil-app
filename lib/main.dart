@@ -35,6 +35,7 @@ Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
       callerName: data['callerName'] ?? 'Bilinmeyen',
       callerUserId: data['callerUserId'] ?? '',
       callerPhotoUrl: fullPhoto,
+      buildingId: (data['buildingId'] ?? '').toString(),
     );
   }
 }
@@ -400,6 +401,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final callId = (extra['callId'] ?? '').toString();
         final callerUserId = (extra['callerUserId'] ?? '').toString();
         final callerName = (extra['callerName'] ?? 'Bilinmeyen').toString();
+        final buildingId = (extra['buildingId'] ?? '').toString();
         print('AKTIF CAGRI: callId=$callId callerUserId=$callerUserId');
 
         if (callId.isNotEmpty && callerUserId.isNotEmpty && mounted) {
@@ -412,6 +414,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 peerName: callerName,
                 isCaller: false,
                 incomingCallId: callId,
+                buildingId: buildingId.isNotEmpty ? buildingId : null,
               ),
             ),
           );
@@ -432,6 +435,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final callId = (extra['callId'] ?? event.callKitParams.id ?? '').toString();
         final callerUserId = (extra['callerUserId'] ?? '').toString();
         final callerName = (extra['callerName'] ?? 'Bilinmeyen').toString();
+        final buildingId = (extra['buildingId'] ?? '').toString();
         FlutterCallkitIncoming.endCall(callId);
         if (mounted) {
           Navigator.push(
@@ -442,6 +446,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 peerName: callerName,
                 isCaller: false,
                 incomingCallId: callId,
+                buildingId: buildingId.isNotEmpty ? buildingId : null,
               ),
             ),
           );
@@ -483,6 +488,7 @@ class _HomeScreenState extends State<HomeScreen> {
         caller['id'],
         callId,
         caller['photoUrl']?.toString(),
+        data['buildingId']?.toString(),
       );
     });
     SocketService.on('call:taken', (data) {
@@ -490,7 +496,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _showIncomingCall(String callerName, String callerId, String callId, [String? photoUrl]) {
+  void _showIncomingCall(String callerName, String callerId, String callId, [String? photoUrl, String? buildingId]) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -535,6 +541,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     peerName: callerName,
                     isCaller: false,
                     incomingCallId: callId,
+                    buildingId: buildingId,
                   ),
                 ),
               );

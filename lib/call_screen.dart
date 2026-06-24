@@ -11,6 +11,7 @@ class CallScreen extends StatefulWidget {
   final bool isCaller;
   final String? incomingCallId;
   final String callType; // 'user' (varsayilan) veya 'security'
+  final String? buildingId; // kapi acma icin (opsiyonel)
 
   const CallScreen({
     super.key,
@@ -19,8 +20,8 @@ class CallScreen extends StatefulWidget {
     required this.isCaller,
     this.incomingCallId,
     this.callType = 'user',
+    this.buildingId,
   });
-
   @override
   State<CallScreen> createState() => _CallScreenState();
 }
@@ -256,6 +257,60 @@ class _CallScreenState extends State<CallScreen> {
     }
   }
 
+  Future<void> _openDoor() async {
+    if (widget.buildingId == null) return;
+    try {
+      final doors = await ApiService.getDoors(widget.buildingId!);
+      if (!mounted) return;
+      if (doors.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Bu binada kapı açma aktif değil'),
+          backgroundColor: Colors.orange,
+        ));
+        return;
+      }
+      String doorId;
+      if (doors.length == 1) {
+        doorId = doors[0]['id'];
+      } else {
+        final selected = await showModalBottomSheet<String>(
+          context: context,
+          builder: (ctx) => SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('Hangi kapı?', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                ),
+                ...doors.map((d) => ListTile(
+                  leading: const Icon(Icons.meeting_room, color: Color(0xFFE63946)),
+                  title: Text(d['name'] ?? 'Kapı'),
+                  onTap: () => Navigator.pop(ctx, d['id'] as String),
+                )),
+              ],
+            ),
+          ),
+        );
+        if (selected == null) return;
+        doorId = selected;
+      }
+      final res = await ApiService.openDoor(doorId, callId: _callId);
+      if (!mounted) return;
+      final ok = res['success'] == true;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(ok ? 'Kapı açıldı ✓' : (res['message'] ?? 'Kapı açılamadı')),
+        backgroundColor: ok ? Colors.green : Colors.orange,
+      ));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Kapı açılamadı'), backgroundColor: Colors.red,
+        ));
+      }
+    }
+  }
+
   void _endCall({bool notify = true}) {
     if (notify && _callId != null) {
       SocketService.emit('call:end', {'callId': _callId});
@@ -351,6 +406,10 @@ class _CallScreenState extends State<CallScreen> {
                   _controlButton(icon: _camOn ? Icons.videocam : Icons.videocam_off, color: _camOn ? Colors.white24 : Colors.red, onTap: _toggleCam),
                   const SizedBox(width: 16),
                   _controlButton(icon: Icons.cameraswitch, color: Colors.white24, onTap: _switchCamera),
+                  if (widget.buildingId != null) ...[
+                    const SizedBox(width: 16),
+                    _controlButton(icon: Icons.meeting_room, color: Colors.green, onTap: _openDoor),
+                  ],
                   const SizedBox(width: 16),
                   _controlButton(icon: Icons.call_end, color: Colors.red, onTap: () => _endCall(), big: true),
                 ],
