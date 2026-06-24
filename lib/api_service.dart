@@ -388,4 +388,27 @@ class ApiService {
       // sessizce geç
     }
   }
+
+  // --- İşyeri (ticari birim) oluştur ---
+  static Future<Map<String, dynamic>> createBusiness({
+    required String businessName,
+    String? category,
+    required double latitude,
+    required double longitude,
+    String? address,
+  }) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/buildings/create-business'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      body: jsonEncode({
+        'businessName': businessName,
+        if (category != null) 'category': category,
+        'latitude': latitude,
+        'longitude': longitude,
+        if (address != null) 'address': address,
+      }),
+    );
+    return _handle(res);
+  }
 }
