@@ -154,6 +154,17 @@ class ApiService {
     }
     return [];
   }
+  // --- Yakındaki görünür binalar (konum modu) ---
+  static Future<List<dynamic>> nearbyVisible(double lat, double lng) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/buildings/nearby-visible?lat=$lat&lng=$lng'),
+    );
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      if (body is List) return body;
+    }
+    return [];
+  }
 // --- Binanın kapıları ---
   static Future<List<dynamic>> getDoors(String buildingId) async {
     final token = await getToken();

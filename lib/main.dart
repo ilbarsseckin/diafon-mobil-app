@@ -16,6 +16,7 @@ import 'push_service.dart';
 import 'callkit_service.dart';
 import 'qr_scan_screen.dart';
 import 'call_history_screen.dart';
+import 'nearby_screen.dart';
 
 // Arka planda/kapalıyken gelen FCM mesajını yakalar
 @pragma('vm:entry-point')
@@ -729,8 +730,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
                     _bottomBarItem(
+                      icon: Icons.near_me,
+                      label: 'Yakında',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const NearbyScreen()),
+                        );
+                      },
+                    ),
+                    _bottomBarItem(
                       icon: Icons.history,
-                      label: 'Geçmiş',
+                      label: 'GeÃ§miÅŸ',
                       onTap: () {
                         Navigator.push(
                           context,
