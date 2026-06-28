@@ -17,7 +17,7 @@ import 'callkit_service.dart';
 import 'qr_scan_screen.dart';
 import 'call_history_screen.dart';
 import 'nearby_screen.dart';
-
+import 'background_service.dart';
 // Arka planda/kapalıyken gelen FCM mesajını yakalar
 @pragma('vm:entry-point')
 Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
@@ -29,7 +29,7 @@ Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
   if (data['type'] == 'incoming_call') {
     final photo = (data['callerPhoto'] ?? '').toString();
     final fullPhoto = (photo.isNotEmpty && !photo.startsWith('http'))
-        ? 'http://128.140.127.151:4000$photo'
+        ? 'https://mobildiafon.com$photo'
         : photo;
     await CallKitService.showIncomingCall(
       callId: data['callId'] ?? '',
@@ -46,12 +46,14 @@ void main() async {
   try {
     await Firebase.initializeApp();
     FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundHandler);
+  } catch (e) {}
+  try {
+    await initBackgroundService();
   } catch (e) {
-    // Firebase başlatılamazsa uygulama yine çalışsın
+    print('FG SERVICE HATA: $e');   // patlarsa uygulama yine açılsın
   }
   runApp(const DiafonApp());
 }
-
 class DiafonApp extends StatelessWidget {
   const DiafonApp({super.key});
 
@@ -80,7 +82,20 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
+    _bootstrapCallPermissions();
     _check();
+  }
+
+  Future<void> _bootstrapCallPermissions() async {
+    // Android 13+ bildirim izni
+    await Permission.notification.request();
+    // Android 14+/16: CallKit'in kilit ekraninda tam ekran acabilmesi icin
+    try {
+      final canFull = await FlutterCallkitIncoming.canUseFullScreenIntent();
+      if (canFull == false) {
+        await FlutterCallkitIncoming.requestFullIntentPermission();
+      }
+    } catch (_) {}
   }
 
   Future<void> _check() async {
@@ -112,14 +127,36 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A2342), // lacivert
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.doorbell, size: 72, color: Color(0xFFE63946)),
-            SizedBox(height: 20),
-            CircularProgressIndicator(color: Color(0xFFE63946)),
+            // MD amblemi
+            ClipRRect(
+              borderRadius: BorderRadius.circular(28),
+              child: Image.asset(
+                'assets/logo.png',
+                width: 130,
+                height: 130,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Icon(Icons.doorbell, size: 90, color: Colors.white),
+              ),
+            ),
+            const SizedBox(height: 24),
+            // MobilDiafon yazısı
+            RichText(
+              text: const TextSpan(
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                children: [
+                  TextSpan(text: 'Mobil', style: TextStyle(color: Colors.white)),
+                  TextSpan(text: 'Diafon', style: TextStyle(color: Color(0xFFE63946))),
+                ],
+              ),
+            ),
+            const SizedBox(height: 36),
+            const CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
           ],
         ),
       ),
@@ -360,8 +397,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   bool _loading = true;
   String? _error;
-  Map<String, dynamic>? _building;
-  List<dynamic> _residents = [];
+  List<dynamic> _buildings = [];
 
   StreamSubscription? _callkitSub;
 
@@ -498,6 +534,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showIncomingCall(String callerName, String callerId, String callId, [String? photoUrl, String? buildingId]) {
+    final hasPhoto = photoUrl != null && photoUrl.isNotEmpty;
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -509,10 +546,9 @@ class _HomeScreenState extends State<HomeScreen> {
             CircleAvatar(
               radius: 40,
               backgroundColor: const Color(0xFFE63946).withValues(alpha: 0.1),
-              backgroundImage: (photoUrl != null && photoUrl.isNotEmpty)
-                  ? NetworkImage(ApiService.fullPhotoUrl(photoUrl))
-                  : null,
-              child: (photoUrl == null || photoUrl.isEmpty)
+              backgroundImage: hasPhoto ? NetworkImage(ApiService.fullPhotoUrl(photoUrl)) : null,
+              onBackgroundImageError: hasPhoto ? (_, __) {} : null,
+              child: !hasPhoto
                   ? const Icon(Icons.person, size: 40, color: Color(0xFFE63946))
                   : null,
             ),
@@ -555,6 +591,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // --- Ana ekran: yakindaki binalari listele ---
   Future<void> _loadNearby() async {
     setState(() { _loading = true; _error = null; });
     try {
@@ -571,48 +608,139 @@ class _HomeScreenState extends State<HomeScreen> {
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       );
-      final data = await ApiService.nearby(pos.latitude, pos.longitude);
-      if (data['building'] != null) {
-        setState(() {
-          _building = data['building'];
-          _residents = data['residents'] ?? [];
-          _loading = false;
-        });
-      } else {
-        setState(() {
-          _building = null; _residents = [];
-          _error = 'Yakınınızda kayıtlı bina yok'; _loading = false;
-        });
-      }
+      final list = await ApiService.nearbyVisible(pos.latitude, pos.longitude);
+      setState(() {
+        _buildings = list;
+        _loading = false;
+      });
     } catch (e) {
       setState(() { _error = e.toString().replaceAll('Exception: ', ''); _loading = false; });
     }
   }
 
-  Future<void> _scanQr() async {
-    final token = await Navigator.push<String>(
-      context,
-      MaterialPageRoute(builder: (_) => const QrScanScreen()),
-    );
-    if (token == null || token.isEmpty) return;
-    setState(() { _loading = true; _error = null; });
+  IconData _iconFor(Map<String, dynamic> b) {
+    if (b['type'] == 'business') {
+      switch (b['businessCategory']) {
+        case 'saglik': return Icons.local_hospital;
+        case 'market': return Icons.shopping_cart;
+        case 'yeme': return Icons.restaurant;
+        case 'kuafor': return Icons.content_cut;
+        case 'ofis': return Icons.business_center;
+        default: return Icons.store;
+      }
+    }
+    return Icons.apartment;
+  }
+
+  String _subtitle(Map<String, dynamic> b) {
+    final dist = b['distance'];
+    final distStr = dist != null ? '$dist m' : '';
+    if (b['type'] == 'business') {
+      return 'İşyeri · $distStr';
+    }
+    final units = b['flatCount'] ?? 0;
+    return '$units daire · $distStr';
+  }
+
+  Future<void> _openBuilding(Map<String, dynamic> b) async {
+    // QR+Konum modu ise uyar (aramak için QR gerekli)
+    if (b['securityMode'] == 'both') {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('QR Gerekli'),
+          content: Text('${b['buildingName']} aramak için kapıdaki QR kodu okutmanız gerekiyor.'),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tamam'))],
+        ),
+      );
+      return;
+    }
+    // Konum modu: binanın sakinlerini çek (by-qr token ile) ve göster
+    final token = b['qrToken'] as String?;
+    if (token == null) return;
     try {
       final data = await ApiService.nearbyByQr(token);
-      if (data['building'] != null) {
-        setState(() {
-          _building = data['building'];
-          _residents = data['residents'] ?? [];
-          _loading = false;
-        });
-      } else {
-        setState(() {
-          _error = data['message'] ?? 'Geçersiz QR kod';
-          _loading = false;
-        });
+      final residents = (data['residents'] as List?) ?? [];
+      if (!mounted) return;
+      if (residents.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Aranabilecek kişi yok')));
+        return;
       }
+      // İşyeri (tek birim) → direkt ara
+      if (b['type'] == 'business' && residents.length == 1) {
+        _callResident(residents[0], b);
+        return;
+      }
+      // Apartman → sakin/daire listesi göster
+      _showResidents(residents, b);
     } catch (e) {
-      setState(() { _error = e.toString().replaceAll('Exception: ', ''); _loading = false; });
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bilgiler alınamadı')));
     }
+  }
+
+  void _showResidents(List<dynamic> residents, Map<String, dynamic> b) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        builder: (_, controller) => Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(b['buildingName'] ?? 'Bina',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+            Expanded(
+              child: ListView.builder(
+                controller: controller,
+                itemCount: residents.length,
+                itemBuilder: (_, i) {
+                  final r = residents[i] as Map<String, dynamic>;
+                  final photo = (r['photoUrl'] ?? '').toString();
+                  final isOnline = r['isOnline'] == true;
+                  final hasPhoto = photo.isNotEmpty;
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: isOnline ? Colors.green.shade50 : Colors.grey.shade100,
+                      backgroundImage: hasPhoto ? NetworkImage(ApiService.fullPhotoUrl(photo)) : null,
+                      onBackgroundImageError: hasPhoto ? (_, __) {} : null,
+                      child: !hasPhoto
+                          ? Icon(Icons.person, color: isOnline ? Colors.green : Colors.grey)
+                          : null,
+                    ),
+                    title: Text(r['name'] ?? 'İsimsiz'),
+                    subtitle: Text('Daire ${r['flatNo'] ?? '?'}'),
+                    trailing: FilledButton.tonalIcon(
+                      onPressed: () { Navigator.pop(ctx); _callResident(r, b); },
+                      icon: const Icon(Icons.call, size: 18),
+                      label: const Text('Ara'),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _callResident(Map<String, dynamic> r, Map<String, dynamic> b) {
+    final userId = r['userId'] ?? '';
+    if (userId.isEmpty) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CallScreen(
+          peerUserId: userId,
+          peerName: r['name'] ?? 'Sakin',
+          isCaller: true,
+          buildingId: b['id'] as String?,
+        ),
+      ),
+    );
   }
 
   void _call(String userId, String name) {
@@ -632,8 +760,6 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        // Güvenlik çağrısı: tek bir peer yok, binanın güvenliklerine gider.
-        // CallScreen callType='security' iken 'call:start-security' emit eder.
         builder: (_) => const CallScreen(
           peerUserId: '',
           peerName: 'Güvenlik',
@@ -648,10 +774,15 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Diafon'),
+        title: const Text('Yakındakiler'),
         backgroundColor: const Color(0xFFE63946),
         foregroundColor: Colors.white,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Yenile',
+            onPressed: _loadNearby,
+          ),
           IconButton(
             icon: const Icon(Icons.settings),
             tooltip: 'Ayarlar',
@@ -724,24 +855,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
-              const SizedBox(width: 48), // ortadaki QR FAB için boşluk (notch)
+              const SizedBox(width: 48),
               Expanded(
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
                     _bottomBarItem(
-                      icon: Icons.near_me,
-                      label: 'Yakında',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const NearbyScreen()),
-                        );
-                      },
-                    ),
-                    _bottomBarItem(
                       icon: Icons.history,
-                      label: 'GeÃ§miÅŸ',
+                      label: 'Geçmiş',
                       onTap: () {
                         Navigator.push(
                           context,
@@ -776,6 +897,39 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _scanQr() async {
+    final token = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const QrScanScreen()),
+    );
+    if (token == null || token.isEmpty) return;
+    try {
+      final data = await ApiService.nearbyByQr(token);
+      final residents = (data['residents'] as List?) ?? [];
+      final building = data['building'] as Map<String, dynamic>?;
+      if (!mounted) return;
+      if (building == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Geçersiz QR kod')));
+        return;
+      }
+      if (residents.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bu binada aranabilecek kişi yok')));
+        return;
+      }
+      _showResidents(residents, {
+        'buildingName': building['buildingName'] ?? 'Bina',
+        'id': building['id'],
+        'type': building['type'] ?? 'residential',
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+        );
+      }
+    }
+  }
+
   Widget _buildBody() {
     if (_loading) {
       return const Center(
@@ -789,7 +943,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     }
-    if (_error != null && _building == null) {
+    if (_error != null) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(28),
@@ -811,70 +965,59 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          color: const Color(0xFFE63946).withValues(alpha: 0.08),
-          child: Row(
+    if (_buildings.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.apartment, color: Color(0xFFE63946), size: 28),
-              const SizedBox(width: 12),
-              Expanded(child: Text(_building?['buildingName'] ?? 'Bina', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
-              IconButton(icon: const Icon(Icons.refresh, color: Color(0xFFE63946)), onPressed: _loadNearby),
+              const Icon(Icons.explore_off, size: 56, color: Colors.grey),
+              const SizedBox(height: 16),
+              const Text('Yakında görünür bina yok',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text('Bu konumda kayıtlı bina/işyeri bulunamadı.',
+                  textAlign: TextAlign.center, style: TextStyle(color: Colors.grey[600])),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: _loadNearby,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Yenile'),
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFFE63946), padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)),
+              ),
             ],
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Text('${_residents.length} sakin', style: TextStyle(color: Colors.grey[600], fontSize: 14)),
-        ),
-        Expanded(
-          child: _residents.isEmpty
-              ? const Center(child: Text('Bu binada kayıtlı sakin yok'))
-              : ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            itemCount: _residents.length,
-            itemBuilder: (context, i) {
-              final r = _residents[i];
-              final isOnline = r['isOnline'] == true;
-              return Card(
-                margin: const EdgeInsets.symmetric(vertical: 4),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: isOnline ? Colors.green.shade50 : Colors.grey.shade100,
-                    backgroundImage: (r['photoUrl'] != null && r['photoUrl'].toString().isNotEmpty)
-                        ? NetworkImage(ApiService.fullPhotoUrl(r['photoUrl']))
-                        : null,
-                    child: (r['photoUrl'] == null || r['photoUrl'].toString().isEmpty)
-                        ? Icon(Icons.person, color: isOnline ? Colors.green : Colors.grey)
-                        : null,
-                  ),
-                  title: Text(r['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Text('Daire ${r['flatNo'] ?? '-'} • Kat ${r['floor'] ?? '-'}'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 8, height: 8,
-                        margin: const EdgeInsets.only(right: 12),
-                        decoration: BoxDecoration(shape: BoxShape.circle, color: isOnline ? Colors.green : Colors.grey),
-                      ),
-                      FilledButton.tonalIcon(
-                        onPressed: () => _call(r['userId'], r['name'] ?? ''),
-                        icon: const Icon(Icons.call, size: 18),
-                        label: const Text('Ara'),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _loadNearby,
+      color: const Color(0xFFE63946),
+      child: ListView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: _buildings.length,
+        itemBuilder: (_, i) {
+          final b = _buildings[i] as Map<String, dynamic>;
+          return Card(
+            margin: const EdgeInsets.only(bottom: 10),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: b['type'] == 'business' ? Colors.orange.shade50 : Colors.blue.shade50,
+                child: Icon(_iconFor(b),
+                    color: b['type'] == 'business' ? Colors.orange : Colors.blue),
+              ),
+              title: Text(b['buildingName'] ?? 'Bina',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text(_subtitle(b)),
+              trailing: b['securityMode'] == 'both'
+                  ? const Icon(Icons.qr_code, color: Colors.grey)
+                  : const Icon(Icons.chevron_right),
+              onTap: () => _openBuilding(b),
+            ),
+          );
+        },
+      ),
     );
   }
 }

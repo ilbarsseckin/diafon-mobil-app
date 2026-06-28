@@ -32,6 +32,11 @@ class CallKitService {
         actionColor: '#4CAF50',
         isShowCallID: false,
         isImportant: true,
+        // Kilit ekranında tam ekran çağrı (Android 14+/16)
+        isShowFullLockedScreen: true,
+        // Kanalı oluşturur — logcat'teki "incoming_calls not created" uyarısını bitirir
+        incomingCallNotificationChannelName: 'Gelen Çağrılar',
+        missedCallNotificationChannelName: 'Kaçan Çağrılar',
       ),
     );
     await FlutterCallkitIncoming.showCallkitIncoming(params);

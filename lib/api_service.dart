@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://128.140.127.151:4000/api';
+  static const String baseUrl = 'https://mobildiafon.com/api';
   static const storage = FlutterSecureStorage();
 
   static Future<Map<String, dynamic>> register(String name, String phone) async {
@@ -247,7 +247,7 @@ class ApiService {
   static String fullPhotoUrl(String? path) {
     if (path == null || path.isEmpty) return '';
     if (path.startsWith('http')) return path;
-    return 'http://128.140.127.151:4000$path';
+    return 'https://mobildiafon.com$path';
   }
   // --- QR token ile binaya katıl ---
   static Future<Map<String, dynamic>> joinByQr({
@@ -422,4 +422,32 @@ class ApiService {
     );
     return _handle(res);
   }
+  // --- ÖDEME: checkout başlat ---
+  static Future<Map<String, dynamic>> initializePayment({
+    required String subscriptionId,
+    required String period, // 'monthly' veya 'yearly'
+  }) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/payment/initialize'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'subscriptionId': subscriptionId, 'period': period}),
+    );
+    return _handle(res);
+  }
+
+  // --- ABONELİK: kendi abonelik durumum ---
+  static Future<Map<String, dynamic>> mySubscription() async {
+    final token = await getToken();
+    final res = await http.get(
+      Uri.parse('$baseUrl/subscription/my'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return _handle(res);
+  }
+
+
 }

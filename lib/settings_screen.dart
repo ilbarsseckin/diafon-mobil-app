@@ -6,6 +6,7 @@ import 'add_building_screen.dart';
 import 'manager_screen.dart';
 import 'qr_screen.dart';
 import 'notes_screen.dart';
+import 'subscription_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -274,6 +275,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const ManagerScreen()),
+              );
+            },
+          ),
+          const Divider(),
+          // Abonelik
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Text('Abonelik', style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w600)),
+          ),
+          ListTile(
+            leading: const Icon(Icons.credit_card, color: Color(0xFFE63946)),
+            title: const Text('Aboneliğim'),
+            subtitle: const Text('Paket durumu ve ödeme'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
               );
             },
           ),

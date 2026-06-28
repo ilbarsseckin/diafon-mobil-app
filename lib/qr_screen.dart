@@ -21,7 +21,7 @@ class _QrScreenState extends State<QrScreen> {
 
   _QrType _type = _QrType.building;
 
-  static const String _webBase = 'http://128.140.127.151:4000/web/ara.html';
+  static const String _webBase = 'https://mobildiafon.com/web/ara.html';
 
   @override
   void initState() {

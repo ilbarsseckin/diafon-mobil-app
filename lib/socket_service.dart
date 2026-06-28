@@ -21,7 +21,7 @@ class SocketService {
     if (token == null) return;
 
     _socket = io.io(
-      'http://128.140.127.151:4000',
+      'https://mobildiafon.com',
       io.OptionBuilder()
           .setTransports(['websocket'])
           .setAuth({'token': token})
