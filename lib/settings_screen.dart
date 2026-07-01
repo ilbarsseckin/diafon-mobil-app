@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'api_service.dart';
 import 'add_building_screen.dart';
+import 'door_management_screen.dart';
 import 'manager_screen.dart';
 import 'qr_screen.dart';
 import 'notes_screen.dart';
@@ -18,6 +19,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _videoEnabled = true;
   bool _loading = true;
+  String _doorbellSound = 'tone1';
   bool _uploadingPhoto = false;
   bool _savingProfile = false;
   String? _photoUrl;
@@ -35,7 +37,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _load() async {
     final v = await ApiService.getVideoEnabled();
     final p = await ApiService.getPhotoUrl();
-    setState(() { _videoEnabled = v; _photoUrl = p; });
+    final ds = await ApiService.getDoorbellSound();
+    setState(() { _videoEnabled = v; _photoUrl = p; _doorbellSound = ds; });
     try {
       final me = await ApiService.getMe();
       _nameCtrl.text = me['name']?.toString() ?? '';
@@ -50,7 +53,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _videoEnabled = value);
     await ApiService.setVideoEnabled(value);
   }
-
+  Future<void> _pickDoorbellSound() async {
+    final secilen = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Zil Sesi Seç', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ),
+            ...List.generate(5, (i) {
+              final tone = 'tone${i + 1}';
+              return RadioListTile<String>(
+                value: tone,
+                groupValue: _doorbellSound,
+                activeColor: const Color(0xFFE63946),
+                title: Text('Zil Sesi ${i + 1}'),
+                onChanged: (v) => Navigator.pop(ctx, v),
+              );
+            }),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (secilen != null) {
+      setState(() => _doorbellSound = secilen);
+      await ApiService.setDoorbellSound(secilen);
+      if (mounted) _toast('Zil sesi kaydedildi');
+    }
+  }
   Future<void> _saveProfile() async {
     if (_nameCtrl.text.trim().isEmpty) {
       _toast('Ad soyad boş olamaz');
@@ -224,6 +258,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               color: const Color(0xFFE63946),
             ),
           ),
+          ListTile(
+            leading: const Icon(Icons.notifications_active, color: Color(0xFFE63946)),
+            title: const Text('Zil Sesi'),
+            subtitle: Text('Ziyaretçi zil çaldığında: Zil Sesi ${_doorbellSound.replaceAll('tone', '')}'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _pickDoorbellSound,
+          ),
           const Divider(),
           // Binam
           const Padding(
@@ -278,6 +319,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               );
             },
           ),
+          ListTile(
+            leading: const Icon(Icons.door_front_door, color: Color(0xFFE63946)),
+            title: const Text('Akıllı Kapılar'),
+            subtitle: const Text('Tuya uyumlu kapı ekle/yönet (yönetici)'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DoorManagementScreen()),
+              );
+            },
+          ),
           const Divider(),
           // Abonelik
           const Padding(
@@ -296,6 +349,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               );
             },
           ),
+
           const SizedBox(height: 20),
         ],
       ),

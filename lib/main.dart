@@ -9,6 +9,8 @@ import 'dart:async';
 import 'add_building_screen.dart';
 import 'api_service.dart';
 import 'homes_screen.dart';
+import 'location_action_screen.dart';
+import 'onboarding_screen.dart';
 import 'socket_service.dart';
 import 'call_screen.dart';
 import 'settings_screen.dart';
@@ -24,6 +26,13 @@ Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
   final data = message.data;
   if (data['type'] == 'call_cancelled') {
     await FlutterCallkitIncoming.endAllCalls();
+    return;
+  }
+  if (data['type'] == 'doorbell') {
+    await showDoorbellNotification(
+      data['visitorName']?.toString() ?? 'Ziyaretçi',
+      data['buildingName']?.toString() ?? '',
+    );
     return;
   }
   if (data['type'] == 'incoming_call') {
@@ -103,6 +112,37 @@ class _SplashScreenState extends State<SplashScreen> {
     final name = await ApiService.getUserName();
     if (!mounted) return;
     if (token == null || token.isEmpty) {
+      // Onboarding görülmediyse önce tanıtımı göster
+      final seen = await ApiService.getOnboardingSeen();
+      if (!mounted) return;
+      if (!seen) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (obCtx) => OnboardingScreen(
+              onFinish: () {
+                Navigator.pushReplacement(
+                  obCtx,
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                );
+              },
+            ),
+          ),
+        );
+        return;
+      }
+      // Misafir modu daha önce seçildiyse direkt misafir ana ekran
+      final guest = await ApiService.getGuestMode();
+      if (!mounted) return;
+      if (guest) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const HomeScreen(userName: 'Misafir', autoAddBuilding: false, guest: true),
+          ),
+        );
+        return;
+      }
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -181,6 +221,7 @@ class _LoginScreenState extends State<LoginScreen> {
   _LoginStep _step = _LoginStep.phone;
   bool _loading = false;
   String? _error;
+  bool _kvkkOk = false;
 
   Future<void> _continuePhone() async {
     final phone = _phoneCtrl.text.trim();
@@ -245,7 +286,17 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() { _error = e.toString().replaceAll('Exception: ', ''); _loading = false; });
     }
   }
-
+  Future<void> _continueGuest() async {
+    // Misafir modu tercihini hatırla (kapatıp açınca login sorma)
+    await ApiService.setGuestMode(true);
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const HomeScreen(userName: 'Misafir', autoAddBuilding: false, guest: true),
+      ),
+    );
+  }
   void _back() {
     setState(() {
       _error = null;
@@ -294,18 +345,15 @@ class _LoginScreenState extends State<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Container(
-                  width: 90, height: 90,
-                  margin: const EdgeInsets.only(bottom: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE63946).withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.doorbell, size: 48, color: Color(0xFFE63946)),
+                Image.network(
+                  'https://cdn.mobildiafon.com/logo/logo.webp',
+                  height: 70,
+                  fit: BoxFit.contain,
+                  errorBuilder: (ctx, err, st) => const Text('MobilDiafon',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFFE63946))),
                 ),
-                const Text('Diafon',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Color(0xFFE63946))),
+                const SizedBox(height: 8),
                 const SizedBox(height: 6),
                 Text(_title,
                     textAlign: TextAlign.center,
@@ -351,9 +399,43 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 16),
                   Text(_error!, style: const TextStyle(color: Colors.red), textAlign: TextAlign.center),
                 ],
+                // KVKK onayı (sadece telefon adımında)
+                if (_step == _LoginStep.phone) ...[
+                  const SizedBox(height: 16),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: 24, height: 24,
+                        child: Checkbox(
+                          value: _kvkkOk,
+                          activeColor: const Color(0xFFE63946),
+                          onChanged: (v) => setState(() => _kvkkOk = v ?? false),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text.rich(
+                            TextSpan(
+                              style: TextStyle(color: Colors.grey[700], fontSize: 13, height: 1.4),
+                              children: const [
+                                TextSpan(text: 'KVKK Aydınlatma Metni'),
+                                TextSpan(text: ' ve ', style: TextStyle(color: Colors.grey)),
+                                TextSpan(text: 'Kullanım Şartları', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFFE63946))),
+                                TextSpan(text: '\'nı okudum, kabul ediyorum.'),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 24),
                 FilledButton(
-                  onPressed: _loading ? null : _action,
+                  onPressed: (_loading || (_step == _LoginStep.phone && !_kvkkOk)) ? null : _action,
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFFE63946),
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -363,11 +445,23 @@ class _LoginScreenState extends State<LoginScreen> {
                       ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                       : Text(_buttonText, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                 ),
-                if (_step != _LoginStep.phone) ...[
-                  const SizedBox(height: 12),
-                  TextButton(
-                    onPressed: _loading ? null : _back,
-                    child: const Text('Geri', style: TextStyle(color: Colors.grey)),
+                if (_step == _LoginStep.phone) ...[
+                  const SizedBox(height: 16),
+                  const Row(children: [
+                    Expanded(child: Divider()),
+                    Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('veya', style: TextStyle(color: Colors.grey))),
+                    Expanded(child: Divider()),
+                  ]),
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    onPressed: (_loading || !_kvkkOk) ? null : _continueGuest,
+                    icon: const Icon(Icons.person_outline, color: Color(0xFF14213D)),
+                    label: const Text('Misafir olarak devam et', style: TextStyle(color: Color(0xFF14213D), fontSize: 15)),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: Colors.grey.shade300),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
                   ),
                 ],
                 if (_step == _LoginStep.otp) ...[
@@ -388,7 +482,8 @@ class _LoginScreenState extends State<LoginScreen> {
 class HomeScreen extends StatefulWidget {
   final String userName;
   final bool autoAddBuilding;
-  const HomeScreen({super.key, required this.userName, this.autoAddBuilding = false});
+  final bool guest;
+  const HomeScreen({super.key, required this.userName, this.autoAddBuilding = false, this.guest = false});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -414,11 +509,57 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openAddBuilding() async {
+    // Misafir ise üyeliğe yönlendir
+    if (widget.guest) {
+      _showGuestPrompt();
+      return;
+    }
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const AddBuildingScreen()),
+      MaterialPageRoute(builder: (_) => const LocationActionScreen()),
     );
     if (result == true) _loadNearby();
+  }
+
+  // Misafir bir üyelik özelliğine dokununca: nazik uyarı + giriş ekranı
+  void _showGuestPrompt() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.lock_outline, color: Color(0xFFE63946)),
+            SizedBox(width: 10),
+            Expanded(child: Text('Üyelik Gerekli', style: TextStyle(fontSize: 18))),
+          ],
+        ),
+        content: const Text(
+          'Ev eklemek, yönetici olmak ve görüntülü çağrı almak için üye olmanız gerekir. '
+              'Misafir olarak yakındaki yerleri görebilir ve QR ile arama yapabilirsiniz.',
+          style: TextStyle(height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Vazgeç', style: TextStyle(color: Colors.grey)),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFE63946)),
+            onPressed: () async {
+              await ApiService.setGuestMode(false);
+              Navigator.pop(ctx);
+              if (!mounted) return;
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+              );
+            },
+            child: const Text('Üye Ol / Giriş Yap'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -514,6 +655,11 @@ class _HomeScreenState extends State<HomeScreen> {
       final data = message.data;
       if (data['type'] == 'call_cancelled') {
         FlutterCallkitIncoming.endAllCalls();
+      } else if (data['type'] == 'doorbell') {
+        showDoorbellNotification(
+          data['visitorName']?.toString() ?? 'Ziyaretçi',
+          data['buildingName']?.toString() ?? '',
+        );
       }
     });
     await SocketService.connect();
@@ -712,10 +858,20 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     title: Text(r['name'] ?? 'İsimsiz'),
                     subtitle: Text('Daire ${r['flatNo'] ?? '?'}'),
-                    trailing: FilledButton.tonalIcon(
-                      onPressed: () { Navigator.pop(ctx); _callResident(r, b); },
-                      icon: const Icon(Icons.call, size: 18),
-                      label: const Text('Ara'),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          onPressed: () => _ringDoorbell(r),
+                          icon: const Icon(Icons.notifications_active, color: Color(0xFFE8830C)),
+                          tooltip: 'Zil Çal',
+                        ),
+                        FilledButton.tonalIcon(
+                          onPressed: () { Navigator.pop(ctx); _callResident(r, b); },
+                          icon: const Icon(Icons.call, size: 18),
+                          label: const Text('Ara'),
+                        ),
+                      ],
                     ),
                   );
                 },
@@ -727,6 +883,28 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _ringDoorbell(Map<String, dynamic> r) async {
+    final apartmentId = (r['apartmentId'] ?? '').toString();
+    if (apartmentId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bu sakine zil çalınamıyor')));
+      return;
+    }
+    final name = r['name'] ?? 'Sakin';
+    try {
+      final res = await ApiService.ringDoorbell(apartmentId: apartmentId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(res['success'] == true ? '🔔 $name için zil çalındı' : (res['message']?.toString() ?? 'Zil çalınamadı'))),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+        );
+      }
+    }
+  }
   void _callResident(Map<String, dynamic> r, Map<String, dynamic> b) {
     final userId = r['userId'] ?? '';
     if (userId.isEmpty) return;
@@ -783,16 +961,17 @@ class _HomeScreenState extends State<HomeScreen> {
             tooltip: 'Yenile',
             onPressed: _loadNearby,
           ),
-          IconButton(
-            icon: const Icon(Icons.settings),
-            tooltip: 'Ayarlar',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
-              );
-            },
-          ),
+          if (!widget.guest)
+            IconButton(
+              icon: const Icon(Icons.settings),
+              tooltip: 'Ayarlar',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                );
+              },
+            ),
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Çıkış',
@@ -808,7 +987,12 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: _buildBody(),
+      body: Column(
+        children: [
+          if (widget.guest) _guestBanner(),
+          Expanded(child: _buildBody()),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _scanQr,
         backgroundColor: const Color(0xFFE63946),
@@ -816,7 +1000,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 30),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: BottomAppBar(
+      bottomNavigationBar: widget.guest ? null : BottomAppBar(
         shape: const CircularNotchedRectangle(),
         notchMargin: 8,
         color: Colors.white,
@@ -832,6 +1016,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       icon: Icons.home,
                       label: 'Evlerim',
                       onTap: () {
+                        if (widget.guest) { _showGuestPrompt(); return; }
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -850,7 +1035,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     _bottomBarItem(
                       icon: Icons.shield,
                       label: 'Güvenlik',
-                      onTap: _callSecurity,
+                      onTap: widget.guest ? _showGuestPrompt : _callSecurity,
                     ),
                   ],
                 ),
@@ -864,6 +1049,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       icon: Icons.history,
                       label: 'Geçmiş',
                       onTap: () {
+                        if (widget.guest) { _showGuestPrompt(); return; }
                         Navigator.push(
                           context,
                           MaterialPageRoute(builder: (_) => const CallHistoryScreen()),
@@ -929,7 +1115,66 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
   }
-
+  Widget _guestBanner() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFE63946), Color(0xFFC1121F)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: const Color(0xFFE63946).withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48, height: 48,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.home_outlined, color: Colors.white, size: 26),
+          ),
+          const SizedBox(width: 14),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Evinizi dijitalleştirin',
+                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                SizedBox(height: 2),
+                Text('Üye olun; ev veya işyerinizi ekleyin, ziyaretçilerinizle görüntülü görüşün.',
+                    style: TextStyle(color: Colors.white, fontSize: 12.5, height: 1.3)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          FilledButton(
+            onPressed: () async {
+              await ApiService.setGuestMode(false);
+              if (!mounted) return;
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+              );
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: const Color(0xFFE63946),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Üye Ol', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+  }
   Widget _buildBody() {
     if (_loading) {
       return const Center(

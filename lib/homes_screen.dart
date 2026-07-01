@@ -15,7 +15,68 @@ class _HomesScreenState extends State<HomesScreen> {
   String? _error;
   List<dynamic> _homes = [];
   int _current = 0;
+  final Map<String, List<dynamic>> _doors = {}; // buildingId -> kapilar
 
+  Future<void> _loadDoorsFor(String? buildingId) async {
+    if (buildingId == null || buildingId.isEmpty || _doors.containsKey(buildingId)) return;
+    try {
+      final doors = await ApiService.getDoors(buildingId);
+      if (mounted) setState(() => _doors[buildingId] = doors);
+    } catch (_) {
+      if (mounted) setState(() => _doors[buildingId] = []);
+    }
+  }
+
+  Future<void> _openDoorFlow(String buildingId) async {
+    final doors = _doors[buildingId] ?? [];
+    if (doors.isEmpty) return;
+    Map<String, dynamic>? secilen;
+    if (doors.length == 1) {
+      secilen = doors.first as Map<String, dynamic>;
+    } else {
+      // Birden cok kapi varsa sec
+      secilen = await showModalBottomSheet<Map<String, dynamic>>(
+        context: context,
+        builder: (ctx) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('Hangi kapı açılsın?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+              ...doors.map((d) {
+                final dm = d as Map<String, dynamic>;
+                return ListTile(
+                  leading: const Icon(Icons.meeting_room, color: Color(0xFFE63946)),
+                  title: Text(dm['name']?.toString() ?? 'Kapı'),
+                  onTap: () => Navigator.pop(ctx, dm),
+                );
+              }),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      );
+    }
+    if (secilen == null) return;
+    final doorId = secilen['id'].toString();
+    final doorName = secilen['name']?.toString() ?? 'Kapı';
+    try {
+      final res = await ApiService.openDoor(doorId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(res['success'] == true ? '$doorName açıldı' : (res['message']?.toString() ?? 'Açılamadı'))),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+        );
+      }
+    }
+  }
   @override
   void initState() {
     super.initState();
@@ -144,6 +205,10 @@ class _HomesScreenState extends State<HomesScreen> {
     final residents = (h['residents'] as List?) ?? [];
     final siteFlats = (h['siteFlats'] as List?) ?? [];
     final imageUrl = h['imageUrl'] as String?;
+    final buildingId = h['buildingId'] as String?;
+    // Bu binanın kapılarını yükle (henüz yüklenmediyse)
+    _loadDoorsFor(buildingId);
+    final doors = buildingId != null ? (_doors[buildingId] ?? []) : [];
 
     return RefreshIndicator(
       onRefresh: _load,
@@ -188,6 +253,26 @@ class _HomesScreenState extends State<HomesScreen> {
               ],
             ),
           ),
+          // Hızlı kapı açma (binada akıllı kapı varsa)
+          if (doors.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => _openDoorFlow(buildingId!),
+                icon: const Icon(Icons.lock_open, size: 22),
+                label: Text(
+                  doors.length == 1 ? 'Kapıyı Aç' : 'Kapı Aç (${doors.length})',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF1FA85C),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
 
           // Evim (kendi dairesindeki sakinler)

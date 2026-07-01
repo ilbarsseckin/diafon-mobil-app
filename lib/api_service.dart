@@ -52,6 +52,31 @@ class ApiService {
   static Future<void> setVideoEnabled(bool enabled) async {
     await storage.write(key: 'videoEnabled', value: enabled ? 'true' : 'false');
   }
+  // --- Onboarding (tanıtım) görüldü mü ---
+  static Future<bool> getOnboardingSeen() async {
+    final val = await storage.read(key: 'onboardingSeen');
+    return val == 'true';
+  }
+
+  static Future<void> setOnboardingSeen() async {
+    await storage.write(key: 'onboardingSeen', value: 'true');
+  }
+
+  // --- Misafir modu tercihi ---
+  static Future<bool> getGuestMode() async {
+    final val = await storage.read(key: 'guestMode');
+    return val == 'true';
+  }
+
+  static Future<void> setGuestMode(bool on) async {
+    if (on) {
+      await storage.write(key: 'guestMode', value: 'true');
+    } else {
+      await storage.delete(key: 'guestMode');
+    }
+  }
+
+
 // --- FCM push token'ı backend'e kaydet ---
   static Future<void> saveFcmToken(String fcmToken) async {
     final token = await getToken();
@@ -121,6 +146,27 @@ class ApiService {
     );
     return _handle(res);
   }
+  // --- ZİL ÇAL: ziyaretçi daireye zil çalar (görüşme başlatmadan) ---
+  static Future<Map<String, dynamic>> ringDoorbell({
+    required String apartmentId,
+    String? visitorName,
+    String? sound,
+  }) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/calls/ring'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'apartmentId': apartmentId,
+        if (visitorName != null) 'visitorName': visitorName,
+        if (sound != null) 'sound': sound,
+      }),
+    );
+    return _handle(res);
+  }
   static Map<String, dynamic> _handle(http.Response res) {
     final body = jsonDecode(utf8.decode(res.bodyBytes));
     if (res.statusCode >= 200 && res.statusCode < 300) {
@@ -164,6 +210,37 @@ class ApiService {
       if (body is List) return body;
     }
     return [];
+  }
+  // --- YÖNETİCİ: kapı ekle ---
+  static Future<Map<String, dynamic>> addDoor({
+    required String buildingId,
+    required String name,
+    required String deviceId,
+    String adapter = 'tuya',
+  }) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/buildings/add-door'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      body: jsonEncode({
+        'buildingId': buildingId,
+        'name': name,
+        'deviceId': deviceId,
+        'adapter': adapter,
+      }),
+    );
+    return _handle(res);
+  }
+
+  // --- YÖNETİCİ: kapı sil ---
+  static Future<Map<String, dynamic>> deleteDoor(String doorId) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/buildings/delete-door'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      body: jsonEncode({'doorId': doorId}),
+    );
+    return _handle(res);
   }
 // --- Binanın kapıları ---
   static Future<List<dynamic>> getDoors(String buildingId) async {
@@ -448,6 +525,14 @@ class ApiService {
     );
     return _handle(res);
   }
+// --- Zil sesi tercihi (tone1..tone5) ---
+  static Future<String> getDoorbellSound() async {
+    final val = await storage.read(key: 'doorbellSound');
+    return (val != null && val.isNotEmpty) ? val : 'tone1';
+  }
 
+  static Future<void> setDoorbellSound(String tone) async {
+    await storage.write(key: 'doorbellSound', value: tone);
+  }
 
 }

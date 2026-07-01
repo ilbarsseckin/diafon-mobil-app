@@ -115,7 +115,17 @@ class _CreateStructureScreenState extends State<CreateStructureScreen> {
       });
     }
 
+// ÖNCE yakındaki binaları kontrol et (çift bina önleme)
     setState(() => _submitting = true);
+    try {
+      final nearby = await ApiService.nearbyBuildings(_selected!.latitude, _selected!.longitude);
+      if (nearby.isNotEmpty && mounted) {
+        setState(() => _submitting = false);
+        final devam = await _showNearbyWarning(nearby);
+        if (devam != true) return; // kullanıcı vazgeçti veya mevcuda yönlendi
+        setState(() => _submitting = true);
+      }
+    } catch (_) {}
     try {
       final res = await ApiService.createStructure(
         siteName: _siteNameCtrl.text.trim(),
@@ -136,6 +146,84 @@ class _CreateStructureScreenState extends State<CreateStructureScreen> {
       if (mounted) _toast(e.toString().replaceAll('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _submitting = false);
+    }
+  }
+// Yakındaki binaları uyarı olarak gösterir (oluşturma öncesi kontrol)
+  Future<bool?> _showNearbyWarning(List<dynamic> nearby) async {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Yakında kayıtlı bina var'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Bu konuma yakın kayıtlı binalar bulundu. Yine de yeni bir yapı mı kurmak istiyorsunuz?'),
+            const SizedBox(height: 12),
+            ...nearby.map((b) => ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.apartment, color: Color(0xFFE63946)),
+              title: Text(b['buildingName']?.toString() ?? 'Bina'),
+              subtitle: Text('${b['distance'] ?? '?'} metre uzakta'),
+            )),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFE63946)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Yine de Kur'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // "Yakındakileri Tara" butonu - konumdaki kayıtlı binaları listeler
+  Future<void> _taraVeGoster() async {
+    if (_selected == null) {
+      _toast('Önce haritadan konum seçin');
+      return;
+    }
+    setState(() => _submitting = true);
+    try {
+      final nearby = await ApiService.nearbyBuildings(_selected!.latitude, _selected!.longitude);
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      if (nearby.isEmpty) {
+        _toast('Bu konumda kayıtlı bina bulunamadı. Yeni kurabilirsiniz.');
+        return;
+      }
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Yakındaki kayıtlı binalar'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: nearby
+                .map((b) => ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.apartment, color: Color(0xFFE63946)),
+              title: Text(b['buildingName']?.toString() ?? 'Bina'),
+              subtitle: Text('${b['distance'] ?? '?'} metre uzakta'),
+            ))
+                .toList(),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Kapat')),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _submitting = false);
+        _toast('Tarama başarısız');
+      }
     }
   }
 
@@ -184,6 +272,22 @@ class _CreateStructureScreenState extends State<CreateStructureScreen> {
               markers: _selected == null ? {} : {
                 Marker(markerId: const MarkerId('sel'), position: _selected!),
               },
+            ),
+          ),
+          // Yakındakileri Tara butonu
+          Container(
+            width: double.infinity,
+            color: const Color(0xFFE63946).withValues(alpha: 0.06),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: OutlinedButton.icon(
+              onPressed: _submitting ? null : _taraVeGoster,
+              icon: const Icon(Icons.radar, color: Color(0xFFE63946)),
+              label: const Text('Bu Konumu Tara (kayıtlı bina var mı?)',
+                  style: TextStyle(color: Color(0xFFE63946))),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFFE63946)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
             ),
           ),
           Expanded(
