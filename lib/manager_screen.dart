@@ -3,6 +3,8 @@ import 'api_service.dart';
 import 'create_structure_screen.dart';
 import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
+
+import 'location_action_screen.dart';
 class ManagerScreen extends StatefulWidget {
   const ManagerScreen({super.key});
 
@@ -122,11 +124,11 @@ class _ManagerScreenState extends State<ManagerScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.add_business),
-            tooltip: 'Yapı Kur',
+            tooltip: 'Yeni Yer Ekle',
             onPressed: () async {
               final result = await Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const CreateStructureScreen()),
+                MaterialPageRoute(builder: (_) => const LocationActionScreen()),
               );
               if (result == true) _load();
             },

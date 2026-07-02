@@ -119,8 +119,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     }
   }
-
-
+  Future<void> _logout() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Oturumu Kapat'),
+        content: const Text('Oturumunuzu kapatmak istediğinize emin misiniz?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç', style: TextStyle(color: Colors.grey))),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFE63946)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Oturumu Kapat'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    await ApiService.logout();
+    if (!mounted) return;
+    Navigator.of(context).popUntil((route) => route.isFirst);
+  }
   Future<void> _deleteAccount() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -485,6 +505,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: Text('Hesap', style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w600)),
+          ),
+          ListTile(
+            leading: const Icon(Icons.logout, color: Color(0xFFE63946)),
+            title: const Text('Oturumu Kapat'),
+            subtitle: const Text('Hesabınızdan çıkış yapın'),
+            onTap: _logout,
           ),
           ListTile(
             leading: const Icon(Icons.delete_forever, color: Colors.red),

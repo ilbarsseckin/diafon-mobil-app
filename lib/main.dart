@@ -1093,19 +1093,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               },
             ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Çıkış',
-            onPressed: () async {
-              SocketService.disconnect();
-              await ApiService.logout();
-              if (mounted) {
-                Navigator.pushReplacement(
-                  context, MaterialPageRoute(builder: (_) => const LoginScreen()),
-                );
-              }
-            },
-          ),
         ],
       ),
       body: Column(

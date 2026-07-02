@@ -1,6 +1,7 @@
 import 'package:diafon_mobil_app/subscription_screen.dart';
 import 'package:flutter/material.dart';
 import 'api_service.dart';
+import 'building_map_screen.dart';
 import 'call_screen.dart';
 
 class HomesScreen extends StatefulWidget {
@@ -268,6 +269,23 @@ class _HomesScreenState extends State<HomesScreen> {
                           ],
                         ),
                       ),
+                      if (h['latitude'] != null && h['longitude'] != null)
+                        IconButton(
+                          icon: const Icon(Icons.location_on, color: Color(0xFFE63946)),
+                          tooltip: 'Konumu Gör',
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => BuildingMapScreen(
+                                  latitude: (h['latitude'] as num).toDouble(),
+                                  longitude: (h['longitude'] as num).toDouble(),
+                                  title: _homeTitle(h),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                     ],
                   ),
                 ),
