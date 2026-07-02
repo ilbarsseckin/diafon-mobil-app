@@ -1,3 +1,5 @@
+import 'package:diafon_mobil_app/webview_screen.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -222,7 +224,38 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _loading = false;
   String? _error;
   bool _kvkkOk = false;
+  Timer? _otpTimer;
+  int _otpSeconds = 0;
 
+  void _startOtpTimer() {
+    _otpTimer?.cancel();
+    setState(() => _otpSeconds = 120);
+    _otpTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) { t.cancel(); return; }
+      if (_otpSeconds <= 1) {
+        t.cancel();
+        setState(() => _otpSeconds = 0);
+      } else {
+        setState(() => _otpSeconds--);
+      }
+    });
+  }
+
+  Future<void> _resendOtp() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      await ApiService.login(_phoneCtrl.text.trim());
+      _startOtpTimer();
+      setState(() => _loading = false);
+    } catch (e) {
+      setState(() { _error = e.toString().replaceAll('Exception: ', ''); _loading = false; });
+    }
+  }
+  @override
+  void dispose() {
+    _otpTimer?.cancel();
+    super.dispose();
+  }
   Future<void> _continuePhone() async {
     final phone = _phoneCtrl.text.trim();
     if (phone.length < 10) {
@@ -233,6 +266,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await ApiService.login(phone);
       setState(() { _step = _LoginStep.otp; _loading = false; });
+      _startOtpTimer();
     } catch (e) {
       final msg = e.toString();
       if (msg.contains('kayıtlı değil')) {
@@ -253,6 +287,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await ApiService.register(name, _phoneCtrl.text.trim());
       setState(() { _step = _LoginStep.otp; _loading = false; });
+      _startOtpTimer();
     } catch (e) {
       setState(() { _error = e.toString().replaceAll('Exception: ', ''); _loading = false; });
     }
@@ -383,7 +418,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
-                if (_step == _LoginStep.otp)
+                if (_step == _LoginStep.otp) ...[
                   TextField(
                     controller: _codeCtrl,
                     keyboardType: TextInputType.number,
@@ -395,6 +430,19 @@ class _LoginScreenState extends State<LoginScreen> {
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  Center(
+                    child: _otpSeconds > 0
+                        ? Text(
+                      'Kodu tekrar gönder (${(_otpSeconds ~/ 60)}:${(_otpSeconds % 60).toString().padLeft(2, '0')})',
+                      style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                    )
+                        : TextButton(
+                      onPressed: _loading ? null : _resendOtp,
+                      child: const Text('Kodu Tekrar Gönder', style: TextStyle(color: Color(0xFFE63946), fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                ],
                 if (_error != null) ...[
                   const SizedBox(height: 16),
                   Text(_error!, style: const TextStyle(color: Colors.red), textAlign: TextAlign.center),
@@ -420,11 +468,27 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: Text.rich(
                             TextSpan(
                               style: TextStyle(color: Colors.grey[700], fontSize: 13, height: 1.4),
-                              children: const [
-                                TextSpan(text: 'KVKK Aydınlatma Metni'),
-                                TextSpan(text: ' ve ', style: TextStyle(color: Colors.grey)),
-                                TextSpan(text: 'Kullanım Şartları', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFFE63946))),
-                                TextSpan(text: '\'nı okudum, kabul ediyorum.'),
+                              children: [
+                                TextSpan(
+                                  text: 'KVKK Aydınlatma Metni',
+                                  style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFFE63946)),
+                                  recognizer: TapGestureRecognizer()..onTap = () {
+                                    Navigator.push(context, MaterialPageRoute(
+                                      builder: (_) => const WebViewScreen(url: 'https://mobildiafon.com/kvkk', title: 'KVKK Aydınlatma Metni'),
+                                    ));
+                                  },
+                                ),
+                                const TextSpan(text: ' ve ', style: TextStyle(color: Colors.grey)),
+                                TextSpan(
+                                  text: 'Kullanım Şartları',
+                                  style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFFE63946)),
+                                  recognizer: TapGestureRecognizer()..onTap = () {
+                                    Navigator.push(context, MaterialPageRoute(
+                                      builder: (_) => const WebViewScreen(url: 'https://mobildiafon.com/kullanim-sartlari', title: 'Kullanım Şartları'),
+                                    ));
+                                  },
+                                ),
+                                const TextSpan(text: '\'nı okudum, kabul ediyorum.'),
                               ],
                             ),
                           ),
@@ -495,13 +559,62 @@ class _HomeScreenState extends State<HomeScreen> {
   List<dynamic> _buildings = [];
 
   StreamSubscription? _callkitSub;
+  int _deletionDaysLeft = -1;
+  Map<String, dynamic>? _trialInfo; // deneme/abonelik durumu (toolbar rozeti)
 
+  Future<void> _checkSubscription() async {
+    if (widget.guest) return;
+    try {
+      final res = await ApiService.mySubscription();
+      final subs = (res['subscriptions'] as List?) ?? [];
+      if (subs.isEmpty) return;
+      // En kritik durumu bul: expired > trial(az gün) > active
+      Map<String, dynamic>? kritik;
+      for (final s in subs) {
+        final sm = s as Map<String, dynamic>;
+        final st = sm['status']?.toString();
+        if (st == 'expired' || st == 'pending_payment') { kritik = sm; break; }
+        if (sm['isTrial'] == true) kritik = sm;
+      }
+      if (mounted && kritik != null) setState(() => _trialInfo = kritik);
+    } catch (_) {}
+  }
+
+  Future<void> _checkDeletionStatus() async {
+    if (widget.guest) return;
+    try {
+      final res = await ApiService.deletionStatus();
+      if (mounted && res['pending'] == true) {
+        setState(() => _deletionDaysLeft = (res['daysLeft'] ?? 0) as int);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _cancelDeletion() async {
+    try {
+      final res = await ApiService.cancelDeletion();
+      if (mounted && res['success'] == true) {
+        setState(() => _deletionDaysLeft = -1);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Hesap silme talebi iptal edildi')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+        );
+      }
+    }
+  }
   @override
   void initState() {
     super.initState();
     _initSocket();
     _loadNearby();
     _listenCallKit();
+    _checkDeletionStatus();
+    _checkSubscription();
     Future.delayed(const Duration(milliseconds: 800), _checkActiveCall);
     if (widget.autoAddBuilding) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _openAddBuilding());
@@ -990,6 +1103,7 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Column(
         children: [
           if (widget.guest) _guestBanner(),
+          if (_deletionDaysLeft >= 0) _deletionBanner(),
           Expanded(child: _buildBody()),
         ],
       ),
@@ -1170,6 +1284,49 @@ class _HomeScreenState extends State<HomeScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             child: const Text('Üye Ol', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _deletionBanner() {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange.shade300),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.warning_amber_rounded, color: Colors.orange.shade800),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Hesabınız $_deletionDaysLeft gün sonra silinecek',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange.shade900, fontSize: 14),
+                ),
+                Text(
+                  'Vazgeçtiyseniz iptal edebilirsiniz.',
+                  style: TextStyle(color: Colors.orange.shade800, fontSize: 12.5),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          FilledButton(
+            onPressed: _cancelDeletion,
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.orange.shade700,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            ),
+            child: const Text('İptal Et', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
           ),
         ],
       ),

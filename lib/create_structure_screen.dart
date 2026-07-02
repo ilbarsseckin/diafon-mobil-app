@@ -4,12 +4,11 @@ import 'package:geolocator/geolocator.dart';
 import 'api_service.dart';
 
 class CreateStructureScreen extends StatefulWidget {
-  const CreateStructureScreen({super.key});
-
+  final String initialMode; // 'residential' veya 'business'
+  const CreateStructureScreen({super.key, this.initialMode = 'residential'});
   @override
   State<CreateStructureScreen> createState() => _CreateStructureScreenState();
 }
-
 class _BlockInput {
   final nameCtrl = TextEditingController();
   final countCtrl = TextEditingController();
@@ -23,12 +22,14 @@ class _CreateStructureScreenState extends State<CreateStructureScreen> {
 
   final _siteNameCtrl = TextEditingController();
   final List<_BlockInput> _blocks = [_BlockInput()];
-  String _mode = 'residential'; // 'residential' veya 'business'
+  late String _mode = widget.initialMode; // widget'tan gelen mod
   final _businessNameCtrl = TextEditingController();
+  final _ownerFlatCtrl = TextEditingController();
   String _category = 'diger';
   final Map<String, String> _categories = {
     'saglik': 'Sağlık (dişçi, doktor)',
     'market': 'Market / Bakkal',
+
     'yeme': 'Yeme-İçme (kafe, restoran)',
     'kuafor': 'Kuaför / Güzellik',
     'ofis': 'Ofis / Büro',
@@ -132,6 +133,7 @@ class _CreateStructureScreenState extends State<CreateStructureScreen> {
         latitude: _selected!.latitude,
         longitude: _selected!.longitude,
         blocks: blocks,
+        ownerFlatNo: _ownerFlatCtrl.text.trim(),
       );
       if (mounted) {
         if (res['success'] == true) {
@@ -297,14 +299,14 @@ class _CreateStructureScreenState extends State<CreateStructureScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Mod seçimi
-                  Row(
-                    children: [
-                      _modeButton('residential', '🏢 Apartman / Site'),
-                      const SizedBox(width: 8),
-                      _modeButton('business', '🏪 İşyeri'),
-                    ],
+                  // Başlık (mod dışarıdan geldi, seçim gizli)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Text(
+                      _mode == 'business' ? 'İşyeri Bilgileri' : 'Apartman / Site Bilgileri',
+                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF14213D)),
+                    ),
                   ),
-                  const SizedBox(height: 16),
 
                   // İŞYERİ FORMU
                   if (_mode == 'business') ...[
@@ -399,8 +401,44 @@ class _CreateStructureScreenState extends State<CreateStructureScreen> {
                       icon: const Icon(Icons.add_circle, color: Color(0xFFE63946)),
                       label: const Text('Blok Ekle', style: TextStyle(color: Color(0xFFE63946))),
                     ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFBFDBFE)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.home, color: Color(0xFF2D7DD2), size: 18),
+                              SizedBox(width: 6),
+                              Text('Bu binada siz de oturuyor musunuz?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E40AF))),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _ownerFlatCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              labelText: 'Kendi daire numaranız (opsiyonel)',
+                              hintText: 'Örn: 5',
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              isDense: true,
+                              filled: true,
+                              fillColor: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text('Doldurursanız bu dairenin sakini olarak da eklenirsiniz.',
+                              style: TextStyle(fontSize: 12, color: Color(0xFF3B6CB3))),
+                        ],
+                      ),
+                    ),
                   ],
-
                   const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,

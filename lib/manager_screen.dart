@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'api_service.dart';
 import 'create_structure_screen.dart';
-
+import 'dart:convert';
+import 'package:image_picker/image_picker.dart';
 class ManagerScreen extends StatefulWidget {
   const ManagerScreen({super.key});
 
@@ -13,6 +14,8 @@ class _ManagerScreenState extends State<ManagerScreen> {
   bool _loading = true;
   bool _isManager = false;
   List<dynamic> _pending = [];
+  List<dynamic> _myBuildings = [];
+  String? _uploadingBuildingId;
   String? _error;
 
   @override
@@ -25,15 +28,45 @@ class _ManagerScreenState extends State<ManagerScreen> {
     setState(() { _loading = true; _error = null; });
     try {
       final data = await ApiService.pendingResidents();
+      List<dynamic> homes = [];
+      try {
+        homes = await ApiService.myHomes();
+      } catch (_) {}
       setState(() {
         _isManager = data['isManager'] == true;
         _pending = data['pending'] ?? [];
+        _myBuildings = homes;
         _loading = false;
       });
     } catch (e) {
       setState(() { _error = e.toString().replaceAll('Exception: ', ''); _loading = false; });
     }
   }
+
+  Future<void> _changeBuildingPhoto(String buildingId) async {
+    try {
+      final picker = ImagePicker();
+      final file = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1000, maxHeight: 1000, imageQuality: 75);
+      if (file == null) return;
+      setState(() => _uploadingBuildingId = buildingId);
+      final bytes = await file.readAsBytes();
+      final base64Str = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+      final res = await ApiService.setBuildingImage(buildingId: buildingId, base64Photo: base64Str);
+      if (mounted) {
+        if (res['success'] == true) {
+          _toast('Bina fotoğrafı güncellendi');
+          _load();
+        } else {
+          _toast(res['message']?.toString() ?? 'Güncellenemedi');
+        }
+      }
+    } catch (e) {
+      if (mounted) _toast('Fotoğraf yüklenemedi');
+    } finally {
+      if (mounted) setState(() => _uploadingBuildingId = null);
+    }
+  }
+
 
   Future<void> _approve(String residentId, String name) async {
     try {
@@ -114,27 +147,35 @@ class _ManagerScreenState extends State<ManagerScreen> {
           ),
         ),
       )
-          : _pending.isEmpty
-          ? const Center(
-        child: Padding(
-          padding: EdgeInsets.all(28),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.check_circle_outline, size: 64, color: Colors.green),
-              SizedBox(height: 16),
-              Text('Bekleyen katılım isteği yok', style: TextStyle(color: Colors.grey, fontSize: 16)),
-            ],
-          ),
-        ),
-      )
           : ListView(
         padding: const EdgeInsets.all(12),
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(4, 4, 4, 12),
-            child: Text('Katılmak isteyen sakinler', style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w600)),
-          ),
+          // BİNA FOTOĞRAFLARI (yönetici)
+          if (_myBuildings.isNotEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.fromLTRB(4, 4, 4, 8),
+              child: Text('Bina Fotoğrafları', style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w600)),
+            ),
+            ..._myBuildings.map((h) => _buildingPhotoCard(h as Map<String, dynamic>)),
+            const SizedBox(height: 16),
+          ],
+          // BEKLEYEN SAKİNLER
+          if (_pending.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  Icon(Icons.check_circle_outline, size: 48, color: Colors.green),
+                  SizedBox(height: 12),
+                  Text('Bekleyen katılım isteği yok', style: TextStyle(color: Colors.grey, fontSize: 15)),
+                ],
+              ),
+            )
+          else
+            const Padding(
+              padding: EdgeInsets.fromLTRB(4, 4, 4, 12),
+              child: Text('Katılmak isteyen sakinler', style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w600)),
+            ),
           ..._pending.map((p) => Card(
             margin: const EdgeInsets.symmetric(vertical: 4),
             child: Padding(
@@ -178,6 +219,62 @@ class _ManagerScreenState extends State<ManagerScreen> {
           )),
         ],
       ),
+    );
+  }
+  Widget _buildingPhotoCard(Map<String, dynamic> h) {
+    final buildingId = (h['buildingId'] ?? h['id'])?.toString();
+    final imageUrl = h['imageUrl']?.toString();
+    final name = (h['siteName'] ?? h['buildingName'] ?? 'Bina').toString();
+    final uploading = _uploadingBuildingId == buildingId;
+    if (buildingId == null) return const SizedBox.shrink();
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Bina fotoğrafı (varsa) veya placeholder
+          Stack(
+            children: [
+              if (imageUrl != null && imageUrl.isNotEmpty)
+                Image.network(
+                  ApiService.fullPhotoUrl(imageUrl),
+                  height: 140, width: double.infinity, fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => _photoPlaceholder(),
+                )
+              else
+                _photoPlaceholder(),
+              if (uploading)
+                Positioned.fill(
+                  child: Container(
+                    color: Colors.black45,
+                    child: const Center(child: CircularProgressIndicator(color: Colors.white)),
+                  ),
+                ),
+            ],
+          ),
+          ListTile(
+            title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: const Text('Bina/işyeri fotoğrafı'),
+            trailing: TextButton.icon(
+              onPressed: uploading ? null : () => _changeBuildingPhoto(buildingId),
+              icon: const Icon(Icons.photo_camera, color: Color(0xFFE63946), size: 20),
+              label: const Text('Değiştir', style: TextStyle(color: Color(0xFFE63946))),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _photoPlaceholder() {
+    return Container(
+      height: 140,
+      width: double.infinity,
+      color: Colors.grey.shade100,
+      child: Icon(Icons.apartment, size: 48, color: Colors.grey.shade400),
     );
   }
 }

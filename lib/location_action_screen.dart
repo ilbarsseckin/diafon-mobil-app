@@ -66,11 +66,11 @@ class _LocationActionScreenState extends State<LocationActionScreen> {
     if (result == true && mounted) Navigator.pop(context, true);
   }
 
-  // Bina/site kur (yönetici) - apartman modu
-  Future<void> _goCreateStructure() async {
+// Bina/site kur (yönetici) veya işyeri ekle - mod parametreli
+  Future<void> _goCreate(String mode) async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const CreateStructureScreen()),
+      MaterialPageRoute(builder: (_) => CreateStructureScreen(initialMode: mode)),
     );
     if (result == true && mounted) Navigator.pop(context, true);
   }
@@ -265,14 +265,14 @@ class _LocationActionScreenState extends State<LocationActionScreen> {
                     color: const Color(0xFFE63946),
                     title: 'Yöneticiyim — Bina / Site Kur',
                     subtitle: 'Apartman veya sitenin yönetimini ben kuruyorum.',
-                    onTap: _goCreateStructure,
+                    onTap: () => _goCreate('residential'),
                   ),
                   _actionCard(
                     icon: Icons.store,
                     color: const Color(0xFFE8830C),
                     title: 'İşyeri Ekle',
                     subtitle: 'Dükkan, ofis veya işletme ekliyorum (apartman olsa bile).',
-                    onTap: _goCreateStructure,
+                    onTap: () => _goCreate('business'),
                   ),
                 ],
               ),

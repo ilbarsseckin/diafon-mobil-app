@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'api_service.dart';
 import 'add_building_screen.dart';
 import 'door_management_screen.dart';
+import 'location_action_screen.dart';
 import 'manager_screen.dart';
 import 'qr_screen.dart';
 import 'notes_screen.dart';
@@ -20,6 +21,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _videoEnabled = true;
   bool _loading = true;
   String _doorbellSound = 'tone1';
+  bool _isManager = false;
   bool _uploadingPhoto = false;
   bool _savingProfile = false;
   String? _photoUrl;
@@ -45,6 +47,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _emailCtrl.text = me['email']?.toString() ?? '';
       _phone = me['phone']?.toString() ?? '';
       if (me['photoUrl'] != null) _photoUrl = me['photoUrl']?.toString();
+    } catch (_) {}
+    try {
+      final subRes = await ApiService.mySubscription();
+      _isManager = subRes['isManager'] == true;
     } catch (_) {}
     setState(() => _loading = false);
   }
@@ -83,6 +89,58 @@ class _SettingsScreenState extends State<SettingsScreen> {
       setState(() => _doorbellSound = secilen);
       await ApiService.setDoorbellSound(secilen);
       if (mounted) _toast('Zil sesi kaydedildi');
+    }
+  }
+  Future<void> _deleteAccount() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red),
+            SizedBox(width: 10),
+            Expanded(child: Text('Üyeliğimi Sil', style: TextStyle(fontSize: 18))),
+          ],
+        ),
+        content: const Text(
+          'Hesabınızı silmek istediğinize emin misiniz?\n\n'
+              'Sakinseniz: Hesabınız ve tüm verileriniz kalıcı olarak silinir.\n\n'
+              'Yöneticiyseniz: Binanız ve tüm sakinleri etkileneceği için hesabınız 30 gün sonra silinir. '
+              'Bu süre içinde işlemi iptal edebilirsiniz.\n\n'
+              'Bu işlem geri alınamaz.',
+          style: TextStyle(height: 1.4),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç', style: TextStyle(color: Colors.grey))),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Hesabımı Sil'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    try {
+      final res = await ApiService.deleteAccount();
+      if (!mounted) return;
+      if (res['success'] == true) {
+        final immediate = res['immediate'] == true;
+        if (immediate) {
+          // Hemen silindi -> çıkış yap, login'e dön
+          await ApiService.logout();
+          if (!mounted) return;
+          Navigator.of(context).popUntil((route) => route.isFirst);
+          _toast('Hesabınız silindi');
+        } else {
+          _toast(res['message']?.toString() ?? 'Hesabınız 30 gün sonra silinecek');
+        }
+      } else {
+        _toast(res['message']?.toString() ?? 'İşlem yapılamadı');
+      }
+    } catch (e) {
+      if (mounted) _toast(e.toString().replaceAll('Exception: ', ''));
     }
   }
   Future<void> _saveProfile() async {
@@ -213,9 +271,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 12),
                 TextField(
                   enabled: false,
+                  controller: TextEditingController(text: _phone),
+                  style: const TextStyle(color: Colors.black87),
                   decoration: InputDecoration(
                     labelText: 'Telefon (değiştirilemez)',
-                    hintText: _phone,
                     prefixIcon: const Icon(Icons.phone),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -285,13 +344,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           ListTile(
             leading: const Icon(Icons.add_home, color: Color(0xFFE63946)),
-            title: const Text('Evimi Ekle / Binaya Katıl'),
-            subtitle: const Text('Yeni bir binaya kaydol'),
+            title: const Text('Yeni Yer Ekle'),
+            subtitle: const Text('Eve katıl, bina/site kur veya işyeri ekle'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const AddBuildingScreen()),
+                MaterialPageRoute(builder: (_) => const LocationActionScreen()),
               );
             },
           ),
@@ -307,49 +366,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
               );
             },
           ),
-          ListTile(
-            leading: const Icon(Icons.admin_panel_settings, color: Color(0xFFE63946)),
-            title: const Text('Bina Yönetimi'),
-            subtitle: const Text('Katılım isteklerini onayla (yönetici)'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ManagerScreen()),
-              );
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.door_front_door, color: Color(0xFFE63946)),
-            title: const Text('Akıllı Kapılar'),
-            subtitle: const Text('Tuya uyumlu kapı ekle/yönet (yönetici)'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const DoorManagementScreen()),
-              );
-            },
-          ),
+          if (_isManager)
+            ListTile(
+              leading: const Icon(Icons.admin_panel_settings, color: Color(0xFFE63946)),
+              title: const Text('Bina Yönetimi'),
+              subtitle: const Text('Katılım isteklerini onayla (yönetici)'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ManagerScreen()),
+                );
+              },
+            ),
+          if (_isManager)
+            ListTile(
+              leading: const Icon(Icons.door_front_door, color: Color(0xFFE63946)),
+              title: const Text('Akıllı Kapılar'),
+              subtitle: const Text('Tuya uyumlu kapı ekle/yönet (yönetici)'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DoorManagementScreen()),
+                );
+              },
+            ),
+          if (_isManager) ...[
+            const Divider(),
+            // Abonelik
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Text('Abonelik', style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w600)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.credit_card, color: Color(0xFFE63946)),
+              title: const Text('Aboneliğim'),
+              subtitle: const Text('Paket durumu ve ödeme'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
+                );
+              },
+            ),
+          ],
           const Divider(),
-          // Abonelik
+          // Hesap
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: Text('Abonelik', style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w600)),
+            child: Text('Hesap', style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w600)),
           ),
           ListTile(
-            leading: const Icon(Icons.credit_card, color: Color(0xFFE63946)),
-            title: const Text('Aboneliğim'),
-            subtitle: const Text('Paket durumu ve ödeme'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
-              );
-            },
+            leading: const Icon(Icons.delete_forever, color: Colors.red),
+            title: const Text('Üyeliğimi Sil', style: TextStyle(color: Colors.red)),
+            subtitle: const Text('Hesabımı ve verilerimi kalıcı olarak sil'),
+            onTap: _deleteAccount,
           ),
-
           const SizedBox(height: 20),
         ],
       ),

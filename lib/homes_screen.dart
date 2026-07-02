@@ -1,3 +1,4 @@
+import 'package:diafon_mobil_app/subscription_screen.dart';
 import 'package:flutter/material.dart';
 import 'api_service.dart';
 import 'call_screen.dart';
@@ -89,16 +90,35 @@ class _HomesScreenState extends State<HomesScreen> {
     super.dispose();
   }
 
+  List<dynamic> _subs = [];
+
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
       final homes = await ApiService.myHomes();
-      setState(() { _homes = homes; _loading = false; });
+      List<dynamic> subs = [];
+      try {
+        final subRes = await ApiService.mySubscription();
+        subs = (subRes['subscriptions'] as List?) ?? [];
+      } catch (_) {}
+      setState(() { _homes = homes; _subs = subs; _loading = false; });
     } catch (e) {
       setState(() { _error = e.toString().replaceAll('Exception: ', ''); _loading = false; });
     }
   }
 
+  // Bir binanın abonelik durumunu bul (isim eşleştirme)
+  Map<String, dynamic>? _subFor(Map<String, dynamic> h) {
+    final bName = (h['siteName'] ?? h['buildingName'] ?? '').toString().toLowerCase().trim();
+    for (final s in _subs) {
+      final sm = s as Map<String, dynamic>;
+      final scope = (sm['scopeName'] ?? '').toString().toLowerCase().trim();
+      if (scope.isNotEmpty && bName.isNotEmpty && (scope == bName || bName.contains(scope) || scope.contains(bName))) {
+        return sm;
+      }
+    }
+    return _subs.isNotEmpty ? _subs.first as Map<String, dynamic> : null;
+  }
   void _call(String userId, String name, String? buildingId) {
     if (userId.isEmpty) return;
     Navigator.push(
@@ -244,6 +264,7 @@ class _HomesScreenState extends State<HomesScreen> {
                           children: [
                             Text(_homeTitle(h), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                             Text('Daire ${h['flatNo'] ?? '-'}', style: TextStyle(color: Colors.grey[600], fontSize: 14)),
+                            _subBadge(h),
                           ],
                         ),
                       ),
@@ -341,5 +362,53 @@ class _HomesScreenState extends State<HomesScreen> {
         ),
       ),
     );
+  }
+
+  Widget _subBadge(Map<String, dynamic> h) {
+    final sub = _subFor(h);
+    if (sub == null) return const SizedBox.shrink();
+    final status = sub['status']?.toString() ?? '';
+    final days = sub['daysLeft'] ?? 0;
+    final isTrial = sub['isTrial'] == true;
+
+    Color bg; Color fg; IconData icon; String text;
+    if (status == 'expired' || status == 'pending_payment') {
+      bg = Colors.red.shade50; fg = Colors.red.shade700; icon = Icons.error_outline;
+      text = 'Süre doldu — Satın Al';
+    } else if (isTrial || status == 'trial') {
+      bg = Colors.orange.shade50; fg = Colors.orange.shade800; icon = Icons.card_giftcard;
+      text = 'Deneme: $days gün kaldı';
+    } else if (status == 'active') {
+      bg = Colors.green.shade50; fg = Colors.green.shade700; icon = Icons.check_circle_outline;
+      text = 'Aktif';
+    } else {
+      return const SizedBox.shrink();
+    }
+
+    final tappable = status == 'expired' || status == 'pending_payment';
+    final badge = Container(
+      margin: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: fg),
+          const SizedBox(width: 5),
+          Text(text, style: TextStyle(color: fg, fontSize: 12, fontWeight: FontWeight.w600)),
+          if (tappable) Icon(Icons.chevron_right, size: 14, color: fg),
+        ],
+      ),
+    );
+
+    if (tappable) {
+      return InkWell(
+        onTap: () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const SubscriptionScreen()));
+        },
+        child: badge,
+      );
+    }
+    return badge;
   }
 }

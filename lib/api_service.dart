@@ -423,12 +423,13 @@ class ApiService {
     return _handle(res);
   }
 
-  // --- YÖNETİCİ: yapı kur (site + bloklar) ---
   static Future<Map<String, dynamic>> createStructure({
     String? siteName,
     required double latitude,
     required double longitude,
     required List<Map<String, dynamic>> blocks,
+    String? ownerFlatNo,
+    String? ownerBlockName,
   }) async {
     final token = await getToken();
     final res = await http.post(
@@ -439,6 +440,8 @@ class ApiService {
         'latitude': latitude,
         'longitude': longitude,
         'blocks': blocks,
+        if (ownerFlatNo != null && ownerFlatNo.isNotEmpty) 'ownerFlatNo': ownerFlatNo,
+        if (ownerBlockName != null && ownerBlockName.isNotEmpty) 'ownerBlockName': ownerBlockName,
       }),
     );
     return _handle(res);
@@ -515,7 +518,33 @@ class ApiService {
     );
     return _handle(res);
   }
+// --- HESAP SİLME ---
+  static Future<Map<String, dynamic>> deleteAccount() async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/auth/delete-account'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return _handle(res);
+  }
 
+  static Future<Map<String, dynamic>> cancelDeletion() async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/auth/cancel-deletion'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return _handle(res);
+  }
+
+  static Future<Map<String, dynamic>> deletionStatus() async {
+    final token = await getToken();
+    final res = await http.get(
+      Uri.parse('$baseUrl/auth/deletion-status'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return _handle(res);
+  }
   // --- ABONELİK: kendi abonelik durumum ---
   static Future<Map<String, dynamic>> mySubscription() async {
     final token = await getToken();
@@ -534,5 +563,17 @@ class ApiService {
   static Future<void> setDoorbellSound(String tone) async {
     await storage.write(key: 'doorbellSound', value: tone);
   }
-
+// --- YÖNETİCİ: bina/işyeri fotoğrafı ayarla ---
+  static Future<Map<String, dynamic>> setBuildingImage({
+    required String buildingId,
+    required String base64Photo,
+  }) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/buildings/set-building-image'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      body: jsonEncode({'buildingId': buildingId, 'photo': base64Photo}),
+    );
+    return _handle(res);
+  }
 }

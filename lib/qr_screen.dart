@@ -1,5 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:screenshot/screenshot.dart';
+import 'package:share_plus/share_plus.dart';
 import 'api_service.dart';
 
 class QrScreen extends StatefulWidget {
@@ -12,6 +16,8 @@ class QrScreen extends StatefulWidget {
 enum _QrType { building, flat, personal }
 
 class _QrScreenState extends State<QrScreen> {
+  final _screenshotController = ScreenshotController();
+  bool _sharing = false;
   bool _loading = true;
   String? _error;
   String? _qrToken;
@@ -120,18 +126,35 @@ class _QrScreenState extends State<QrScreen> {
             const SizedBox(height: 4),
             Text(_buildingName ?? '', style: TextStyle(color: Colors.grey[600])),
             const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
+            Screenshot(
+              controller: _screenshotController,
+              child: Container(
+                padding: const EdgeInsets.all(24),
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 12)],
-              ),
-              child: QrImageView(
-                data: _qrData,
-                version: QrVersions.auto,
-                size: 240,
-                backgroundColor: Colors.white,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Logo (paylaşım görselinde marka görünürlüğü)
+                    Image.network(
+                      'https://cdn.mobildiafon.com/logo/logo.webp',
+                      height: 44,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Text('MobilDiafon',
+                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFFE63946))),
+                    ),
+                    const SizedBox(height: 16),
+                    QrImageView(
+                      data: _qrData,
+                      version: QrVersions.auto,
+                      size: 240,
+                      backgroundColor: Colors.white,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(_qrTitle, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF14213D))),
+                    if (_buildingName != null)
+                      Text(_buildingName!, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 20),
@@ -149,9 +172,25 @@ class _QrScreenState extends State<QrScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _sharing ? null : _shareQr,
+                icon: _sharing
+                    ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Icon(Icons.share),
+                label: Text(_sharing ? 'Hazırlanıyor...' : 'QR Kodu Paylaş'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFE63946),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
             const Text(
-              'QR kodun ekran görüntüsünü alıp yazdırabilir veya paylaşabilirsiniz.',
+              'QR kodu WhatsApp, e-posta veya diğer uygulamalarla paylaşabilirsiniz.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
@@ -159,5 +198,33 @@ class _QrScreenState extends State<QrScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _shareQr() async {
+    setState(() => _sharing = true);
+    try {
+      final image = await _screenshotController.capture(pixelRatio: 3.0);
+      if (image == null) {
+        setState(() => _sharing = false);
+        return;
+      }
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/mobildiafon_qr.png');
+      await file.writeAsBytes(image);
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path)],
+          text: '$_qrTitle - MobilDiafon\n$_qrDescription',
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Paylaşılamadı: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sharing = false);
+    }
   }
 }
