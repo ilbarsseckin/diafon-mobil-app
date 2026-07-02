@@ -22,6 +22,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _loading = true;
   String _doorbellSound = 'tone1';
   bool _isManager = false;
+  bool _invisible = false; // görünmez (hayalet) mod
+  bool _dnd = false; // rahatsız etme modu
   bool _uploadingPhoto = false;
   bool _savingProfile = false;
   String? _photoUrl;
@@ -51,6 +53,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final subRes = await ApiService.mySubscription();
       _isManager = subRes['isManager'] == true;
+    } catch (_) {}
+    try {
+      final visible = await ApiService.getMyVisibility();
+      _invisible = !visible;
+    } catch (_) {}
+    try {
+      _dnd = await ApiService.getDndMode();
     } catch (_) {}
     setState(() => _loading = false);
   }
@@ -91,6 +100,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) _toast('Zil sesi kaydedildi');
     }
   }
+
+  Future<void> _toggleInvisible(bool value) async {
+    setState(() => _invisible = value);
+    try {
+      await ApiService.setMyVisibility(!value); // invisible=true → visible=false
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(value ? 'Görünmez moda geçtiniz' : 'Artık görünürsünüz')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _invisible = !value); // hata olursa geri al
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+        );
+      }
+    }
+  }
+
+
   Future<void> _deleteAccount() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -314,6 +344,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             secondary: Icon(
               _videoEnabled ? Icons.videocam : Icons.videocam_off,
+              color: const Color(0xFFE63946),
+            ),
+          ),
+          SwitchListTile(
+            value: _invisible,
+            activeColor: const Color(0xFFE63946),
+            onChanged: _toggleInvisible,
+            title: const Text('Görünmez Ol (Hayalet Mod)'),
+            subtitle: Text(
+              _invisible
+                  ? 'İsim listesinde görünmüyorsunuz, çağrı almazsınız'
+                  : 'İsim listesinde görünür, çağrı alırsınız',
+            ),
+            secondary: Icon(
+              _invisible ? Icons.visibility_off : Icons.visibility,
+              color: const Color(0xFFE63946),
+            ),
+          ),
+          SwitchListTile(
+            value: _dnd,
+            activeColor: const Color(0xFFE63946),
+            onChanged: (v) async {
+              setState(() => _dnd = v);
+              await ApiService.setDndMode(v);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(v ? 'Rahatsız Etme modu açık' : 'Rahatsız Etme modu kapalı')),
+                );
+              }
+            },
+            title: const Text('Rahatsız Etme'),
+            subtitle: Text(
+              _dnd
+                  ? 'Çağrı ve ziller sessiz gelir'
+                  : 'Çağrı ve ziller normal ses çıkarır',
+            ),
+            secondary: Icon(
+              _dnd ? Icons.do_not_disturb_on : Icons.do_not_disturb_off,
               color: const Color(0xFFE63946),
             ),
           ),

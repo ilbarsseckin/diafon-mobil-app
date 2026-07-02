@@ -19,7 +19,7 @@
     <application
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:label="diafon_mobil_app"
+        android:label="MobilDiafon"
         android:usesCleartextTraffic="true">
 
         <activity

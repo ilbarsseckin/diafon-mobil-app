@@ -10,6 +10,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'dart:async';
 import 'add_building_screen.dart';
 import 'api_service.dart';
+import 'connectivity_banner.dart';
 import 'homes_screen.dart';
 import 'location_action_screen.dart';
 import 'onboarding_screen.dart';
@@ -78,6 +79,9 @@ class DiafonApp extends StatelessWidget {
         useMaterial3: true,
       ),
       home: const SplashScreen(),
+      builder: (context, child) {
+        return ConnectivityBanner(child: child ?? const SizedBox.shrink());
+      },
     );
   }
 }
@@ -170,35 +174,22 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A2342), // lacivert
+      backgroundColor: Colors.white,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             // MD amblemi
-            ClipRRect(
-              borderRadius: BorderRadius.circular(28),
-              child: Image.asset(
-                'assets/logo.png',
-                width: 130,
-                height: 130,
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => const Icon(Icons.doorbell, size: 90, color: Colors.white),
-              ),
+            Image.asset(
+              'assets/logo.webp',
+              width: 220,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Icon(Icons.doorbell, size: 90, color: Colors.white),
             ),
             const SizedBox(height: 24),
             // MobilDiafon yazısı
-            RichText(
-              text: const TextSpan(
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 0.5),
-                children: [
-                  TextSpan(text: 'Mobil', style: TextStyle(color: Colors.white)),
-                  TextSpan(text: 'Diafon', style: TextStyle(color: Color(0xFFE63946))),
-                ],
-              ),
-            ),
-            const SizedBox(height: 36),
-            const CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+            const SizedBox(height: 12),
+            const CircularProgressIndicator(color: Color(0xFFE63946), strokeWidth: 2.5),
           ],
         ),
       ),
@@ -561,6 +552,14 @@ class _HomeScreenState extends State<HomeScreen> {
   StreamSubscription? _callkitSub;
   int _deletionDaysLeft = -1;
   Map<String, dynamic>? _trialInfo; // deneme/abonelik durumu (toolbar rozeti)
+  bool _dnd = false;
+
+  Future<void> _checkDnd() async {
+    try {
+      final v = await ApiService.getDndMode();
+      if (mounted) setState(() => _dnd = v);
+    } catch (_) {}
+  }
 
   Future<void> _checkSubscription() async {
     if (widget.guest) return;
@@ -615,6 +614,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _listenCallKit();
     _checkDeletionStatus();
     _checkSubscription();
+    _checkDnd();
     Future.delayed(const Duration(milliseconds: 800), _checkActiveCall);
     if (widget.autoAddBuilding) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _openAddBuilding());
@@ -1065,7 +1065,15 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Yakındakiler'),
+        title: Row(
+          children: [
+            const Text('Yakındakiler'),
+            if (_dnd) ...[
+              const SizedBox(width: 8),
+              const Icon(Icons.do_not_disturb_on, size: 18, color: Colors.white70),
+            ],
+          ],
+        ),
         backgroundColor: const Color(0xFFE63946),
         foregroundColor: Colors.white,
         actions: [

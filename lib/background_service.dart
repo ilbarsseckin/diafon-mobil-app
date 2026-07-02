@@ -63,16 +63,19 @@ Future<void> showDoorbellNotification(String visitorName, String buildingName) a
     android: AndroidInitializationSettings('@mipmap/ic_launcher'),
   );
   await fln.initialize(settings: initSettings);
+// Rahatsız Etme modu açıksa sessiz göster
+  final dnd = await ApiService.getDndMode();
   // Kullanıcının seçtiği zil sesi (tone1..tone5)
   final tone = await ApiService.getDoorbellSound();
   final androidDetails = AndroidNotificationDetails(
-    'doorbell_$tone',
+    dnd ? 'doorbell_silent' : 'doorbell_$tone',
     'Kapı Zili',
     channelDescription: 'Ziyaretçi zil çaldığında bildirim',
-    importance: Importance.high,
-    priority: Priority.high,
-    sound: RawResourceAndroidNotificationSound(tone),
-    playSound: true,
+    importance: dnd ? Importance.low : Importance.high,
+    priority: dnd ? Priority.low : Priority.high,
+    sound: dnd ? null : RawResourceAndroidNotificationSound(tone),
+    playSound: !dnd,
+    enableVibration: !dnd,
     icon: '@mipmap/ic_launcher',
   );
   await fln.show(

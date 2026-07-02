@@ -76,7 +76,15 @@ class ApiService {
     }
   }
 
+  // --- RAHATSIZ ETME (DND) MODU - yerel ---
+  static Future<void> setDndMode(bool value) async {
+    await storage.write(key: 'dndMode', value: value ? '1' : '0');
+  }
 
+  static Future<bool> getDndMode() async {
+    final v = await storage.read(key: 'dndMode');
+    return v == '1';
+  }
 // --- FCM push token'ı backend'e kaydet ---
   static Future<void> saveFcmToken(String fcmToken) async {
     final token = await getToken();
@@ -576,4 +584,28 @@ class ApiService {
     );
     return _handle(res);
   }
+
+
+  // --- GÖRÜNMEZ MOD (hayalet) ---
+  static Future<Map<String, dynamic>> setMyVisibility(bool visible) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/apartments/me/visibility'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      body: jsonEncode({'visible': visible}),
+    );
+    return _handle(res);
+  }
+
+  static Future<bool> getMyVisibility() async {
+    final token = await getToken();
+    final res = await http.get(
+      Uri.parse('$baseUrl/apartments/me/visibility'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final data = _handle(res);
+    return data['visible'] != false;
+  }
+
+
 }

@@ -31,27 +31,35 @@ dependencies:
   share_plus: ^13.2.0
   screenshot: ^3.0.0
   path_provider: ^2.1.6
+  connectivity_plus: ^7.2.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
   change_app_package_name: ^1.5.0
   flutter_native_splash: ^2.4.3
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
   assets:
-    - assets/logo.png
+    - assets/logo.webp
 
 # ============================================================
 # Native acilis ekrani (Flutter logosu yerine MD amblemi)
 # Uretmek icin: dart run flutter_native_splash:create
 # ============================================================
 flutter_native_splash:
-  color: "#0A2342"
+  color: "#FFFFFF"
   image: assets/logo.png
   android: true
   ios: true
-  android_12:
-    color: "#0A2342"
-    image: assets/logo.png
+android_12:
+  color: "#FFFFFF"
+  image: assets/logo.png
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon-1024.png"
+  remove_alpha_ios: true

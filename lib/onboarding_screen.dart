@@ -40,34 +40,40 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       backgroundColor: Colors.white,
       body: Stack(
         children: [
-          // Tam ekran kaydırmalı görseller
+          // Tam ekran kaydırmalı görseller - üste yaslanmış
           PageView.builder(
             controller: _controller,
             onPageChanged: (i) => setState(() => _page = i),
             itemCount: _images.length,
             itemBuilder: (_, i) {
-              return Image.network(
-                _images[i],
-                fit: BoxFit.contain,
-                width: double.infinity,
-                height: double.infinity,
-                loadingBuilder: (ctx, child, progress) {
-                  if (progress == null) return child;
-                  return const Center(
-                    child: CircularProgressIndicator(color: Color(0xFFE63946)),
-                  );
-                },
-                errorBuilder: (ctx, err, st) => const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Text('Görsel yüklenemedi', style: TextStyle(color: Colors.grey)),
+              return SafeArea(
+                bottom: false,
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: Image.network(
+                    _images[i],
+                    fit: BoxFit.fitWidth,
+                    width: double.infinity,
+                    loadingBuilder: (ctx, child, progress) {
+                      if (progress == null) return child;
+                      return const Padding(
+                        padding: EdgeInsets.only(top: 120),
+                        child: Center(
+                          child: CircularProgressIndicator(color: Color(0xFFE63946)),
+                        ),
+                      );
+                    },
+                    errorBuilder: (ctx, err, st) => const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text('Görsel yüklenemedi', style: TextStyle(color: Colors.grey)),
+                    ),
                   ),
                 ),
               );
             },
           ),
 
-          // Geç butonu (sağ üst)
+          // Geç butonu (sag ust)
           SafeArea(
             child: Align(
               alignment: Alignment.topRight,
