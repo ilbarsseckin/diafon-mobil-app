@@ -261,6 +261,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       final msg = e.toString();
       if (msg.contains('kayıtlı değil')) {
+        FocusScope.of(context).unfocus();
         setState(() { _step = _LoginStep.name; _loading = false; });
       } else {
         setState(() { _error = msg.replaceAll('Exception: ', ''); _loading = false; });
@@ -400,8 +401,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 if (_step == _LoginStep.name)
                   TextField(
                     controller: _nameCtrl,
-                    autofocus: true,
-                    keyboardType: TextInputType.name,
                     textCapitalization: TextCapitalization.words,
                     decoration: InputDecoration(
                       labelText: 'Ad Soyad',

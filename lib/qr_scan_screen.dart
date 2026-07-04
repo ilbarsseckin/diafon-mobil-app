@@ -29,7 +29,13 @@ class _QrScanScreenState extends State<QrScanScreen> {
                 final code = barcodes.first.rawValue;
                 if (code != null && code.isNotEmpty) {
                   _handled = true;
-                  Navigator.pop(context, code); // okunan token'ı geri döndür
+                  // QR bir URL ise icinden token parametresini ayikla
+                  String token = code;
+                  final uri = Uri.tryParse(code);
+                  if (uri != null && uri.queryParameters['token'] != null) {
+                    token = uri.queryParameters['token']!;
+                  }
+                  Navigator.pop(context, token);
                 }
               }
             },

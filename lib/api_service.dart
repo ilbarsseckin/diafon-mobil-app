@@ -154,6 +154,11 @@ class ApiService {
     );
     return _handle(res);
   }
+
+  static Future<void> resetOnboarding() async {
+    await storage.delete(key: 'onboardingSeen');
+  }
+
   // --- ZİL ÇAL: ziyaretçi daireye zil çalar (görüşme başlatmadan) ---
   static Future<Map<String, dynamic>> ringDoorbell({
     required String apartmentId,
@@ -606,6 +611,14 @@ class ApiService {
     final data = _handle(res);
     return data['visible'] != false;
   }
-
+// --- YÖNETİCİ: bina genel görünümü (bina > daire > sakin) ---
+  static Future<Map<String, dynamic>> buildingOverview() async {
+    final token = await getToken();
+    final res = await http.get(
+      Uri.parse('$baseUrl/buildings/building-overview'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return _handle(res);
+  }
 
 }

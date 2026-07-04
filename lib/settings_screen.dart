@@ -1,11 +1,15 @@
 import 'dart:convert';
+import 'package:diafon_mobil_app/permissions_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'api_service.dart';
 import 'add_building_screen.dart';
+import 'building_overview_screen.dart';
 import 'door_management_screen.dart';
 import 'location_action_screen.dart';
+import 'main.dart';
 import 'manager_screen.dart';
+import 'onboarding_screen.dart';
 import 'qr_screen.dart';
 import 'notes_screen.dart';
 import 'subscription_screen.dart';
@@ -138,9 +142,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
     if (confirm != true) return;
     await ApiService.logout();
+    await ApiService.resetOnboarding();
     if (!mounted) return;
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => OnboardingScreen(
+        onFinish: () {
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+        },
+      )),
+          (route) => false,
+    );
   }
+
+
   Future<void> _deleteAccount() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -458,12 +473,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ListTile(
               leading: const Icon(Icons.admin_panel_settings, color: Color(0xFFE63946)),
               title: const Text('Bina Yönetimi'),
-              subtitle: const Text('Katılım isteklerini onayla (yönetici)'),
+              subtitle: const Text('Daireleri ve sakinleri yönet (yönetici)'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const ManagerScreen()),
+                  MaterialPageRoute(builder: (_) => const BuildingOverviewScreen()),
                 );
               },
             ),
@@ -500,6 +515,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
           ],
+          ListTile(
+            leading: const Icon(Icons.notifications_active, color: Color(0xFFE63946)),
+            title: const Text('Bildirim ve İzinler'),
+            subtitle: const Text('Çağrı bildirimleri ve uygulama izinleri'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PermissionsScreen()),
+              );
+            },
+          ),
           const Divider(),
           // Hesap
           const Padding(

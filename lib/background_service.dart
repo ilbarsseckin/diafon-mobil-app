@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:geolocator/geolocator.dart';
 
 import 'api_service.dart';
 
@@ -60,8 +61,7 @@ Future<void> initBackgroundService() async {
 Future<void> showDoorbellNotification(String visitorName, String buildingName) async {
   final fln = FlutterLocalNotificationsPlugin();
   const initSettings = InitializationSettings(
-    android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-  );
+    android: AndroidInitializationSettings('@drawable/ic_notification'),  );
   await fln.initialize(settings: initSettings);
 // Rahatsız Etme modu açıksa sessiz göster
   final dnd = await ApiService.getDndMode();
@@ -76,7 +76,7 @@ Future<void> showDoorbellNotification(String visitorName, String buildingName) a
     sound: dnd ? null : RawResourceAndroidNotificationSound(tone),
     playSound: !dnd,
     enableVibration: !dnd,
-    icon: '@mipmap/ic_launcher',
+    icon: '@drawable/ic_notification',
   );
   await fln.show(
     id: 9001,

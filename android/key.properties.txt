@@ -1,0 +1,4 @@
+storePassword=2328897
+keyPassword=2328897
+keyAlias=mobildiafon
+storeFile=C:\\smartdiafon\\keys\\mobildiafon-release.jks

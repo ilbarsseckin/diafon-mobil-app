@@ -1,123 +1,119 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:geolocator/geolocator.dart';
-import 'api_service.dart';
 import 'add_building_screen.dart';
 import 'create_structure_screen.dart';
 
-/// Konum seçip "ne yapmak istiyorsun?" sorusunu soran tek temiz giriş ekranı.
-/// 3 net akış: Eve katıl (sakin) / Bina kur (yönetici) / İşyeri ekle.
-class LocationActionScreen extends StatefulWidget {
+/// Basit giriş ekranı: harita/tarama yok, sadece niyet seçimi.
+/// 1) Sakin Olarak Katıl  -> AddBuildingScreen (kendi adres/konum akışı var)
+/// 2) Yeni Ev / Bina Ekle -> CreateStructureScreen (kendi konum akışı var)
+/// (+ küçük seçenek: İşyeri Ekle)
+class LocationActionScreen extends StatelessWidget {
   const LocationActionScreen({super.key});
 
-  @override
-  State<LocationActionScreen> createState() => _LocationActionScreenState();
-}
+  static const _red = Color(0xFFE63946);
+  static const _navy = Color(0xFF14213D);
+  static const _blue = Color(0xFF2D7DD2);
+  static const _orange = Color(0xFFE8830C);
 
-class _LocationActionScreenState extends State<LocationActionScreen> {
-  LatLng? _selected;
-  bool _loadingLocation = true;
-  bool _scanning = false;
-  List<dynamic> _nearby = [];
-  bool _scanned = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _getMyLocation();
-  }
-
-  Future<void> _getMyLocation() async {
-    try {
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-      );
-      setState(() {
-        _selected = LatLng(pos.latitude, pos.longitude);
-        _loadingLocation = false;
-      });
-      _scan(); // konum gelince otomatik tara
-    } catch (e) {
-      setState(() {
-        _selected = const LatLng(41.0082, 28.9784);
-        _loadingLocation = false;
-      });
-    }
-  }
-
-  Future<void> _scan() async {
-    if (_selected == null) return;
-    setState(() { _scanning = true; });
-    try {
-      final nearby = await ApiService.nearbyBuildings(_selected!.latitude, _selected!.longitude);
-      if (!mounted) return;
-      setState(() { _nearby = nearby; _scanned = true; _scanning = false; });
-    } catch (e) {
-      if (mounted) setState(() { _scanning = false; _scanned = true; });
-    }
-  }
-
-  // Eve katıl (sakin)
-  Future<void> _goJoin() async {
+  Future<void> _goJoin(BuildContext context) async {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const AddBuildingScreen()),
     );
-    if (result == true && mounted) Navigator.pop(context, true);
+    if (result == true && context.mounted) Navigator.pop(context, true);
   }
 
-// Bina/site kur (yönetici) veya işyeri ekle - mod parametreli
-  Future<void> _goCreate(String mode) async {
+  Future<void> _goCreate(BuildContext context, String mode) async {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => CreateStructureScreen(initialMode: mode)),
     );
-    if (result == true && mounted) Navigator.pop(context, true);
+    if (result == true && context.mounted) Navigator.pop(context, true);
   }
 
-  Widget _actionCard({
+  Widget _bigCard({
     required IconData icon,
     required Color color,
     required String title,
     required String subtitle,
+    required List<String> steps,
     required VoidCallback onTap,
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: Colors.grey.shade200),
           boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2)),
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 3)),
           ],
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 52, height: 52,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: color, size: 26),
+            Row(
+              children: [
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(icon, color: color, size: 28),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              color: _navy)),
+                      const SizedBox(height: 3),
+                      Text(subtitle,
+                          style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                              height: 1.25)),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: Colors.grey[400]),
+              ],
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF14213D))),
-                  const SizedBox(height: 3),
-                  Text(subtitle, style: TextStyle(fontSize: 13, color: Colors.grey[600], height: 1.2)),
-                ],
-              ),
+            const SizedBox(height: 12),
+            Divider(color: Colors.grey.shade100, height: 1),
+            const SizedBox(height: 10),
+            // Kullanıcı ne yapacağını önceden bilsin
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: List.generate(steps.length, (i) {
+                return Container(
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text('${i + 1}. ${steps[i]}',
+                      style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: color)),
+                );
+              }),
             ),
-            Icon(Icons.chevron_right, color: Colors.grey[400]),
           ],
         ),
       ),
@@ -129,156 +125,59 @@ class _LocationActionScreenState extends State<LocationActionScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FA),
       appBar: AppBar(
-        title: const Text('Konum Ekle'),
-        backgroundColor: const Color(0xFFE63946),
+        title: const Text('Yeni Yer Ekle'),
+        backgroundColor: _red,
         foregroundColor: Colors.white,
       ),
-      body: _loadingLocation
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFFE63946)))
-          : Column(
-        children: [
-          // HARİTA
-          SizedBox(
-            height: 220,
-            child: Stack(
-              children: [
-                GoogleMap(
-                  initialCameraPosition: CameraPosition(target: _selected!, zoom: 18),
-                  onMapCreated: (c) {},
-                  myLocationEnabled: true,
-                  myLocationButtonEnabled: true,
-                  onTap: (pos) {
-                    setState(() { _selected = pos; _scanned = false; _nearby = []; });
-                    _scan();
-                  },
-                  markers: _selected == null ? {} : {
-                    Marker(markerId: const MarkerId('sel'), position: _selected!),
-                  },
-                ),
-                Positioned(
-                  bottom: 8, left: 8, right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.black54,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      'Konumu haritada işaretleyin (dokunun)',
-                      style: TextStyle(color: Colors.white, fontSize: 12),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-              ],
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 4),
+            const Text('Ne yapmak istiyorsunuz?',
+                style: TextStyle(
+                    fontSize: 20, fontWeight: FontWeight.w700, color: _navy)),
+            const SizedBox(height: 6),
+            Text('Durumunuza uygun seçeneği seçin, sizi adım adım yönlendirelim.',
+                style: TextStyle(fontSize: 13.5, color: Colors.grey[600])),
+            const SizedBox(height: 22),
+
+            // 1 — SAKİN
+            _bigCard(
+              icon: Icons.home,
+              color: _blue,
+              title: 'Sakin Olarak Katıl',
+              subtitle:
+              'Binanız sistemde zaten kayıtlı, siz dairenize bağlanacaksınız.',
+              steps: const ['Adresini bul', 'Binanı seç', 'Daire no gönder'],
+              onTap: () => _goJoin(context),
             ),
-          ),
 
-          // TARAMA SONUCU
-          if (_scanning)
-            const Padding(
-              padding: EdgeInsets.all(12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFE63946))),
-                  SizedBox(width: 10),
-                  Text('Bu konum taranıyor...'),
-                ],
-              ),
-            )
-          else if (_scanned && _nearby.isNotEmpty)
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF4E5),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFFFD8A8)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: const [
-                      Icon(Icons.info_outline, color: Color(0xFFE8830C), size: 18),
-                      SizedBox(width: 6),
-                      Text('Bu konumda kayıtlı bina var', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFB35900))),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  ..._nearby.take(3).map((b) => Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text('• ${b['buildingName'] ?? 'Bina'}  (${b['distance'] ?? '?'} m)',
-                        style: const TextStyle(fontSize: 13, color: Color(0xFF7A5200))),
-                  )),
-                  const SizedBox(height: 4),
-                  const Text('Burada oturuyorsanız "Eve Katıl" seçin, yeni bina KURMAYIN.',
-                      style: TextStyle(fontSize: 12, color: Color(0xFFB35900), fontStyle: FontStyle.italic)),
-                ],
-              ),
-            )
-          else if (_scanned && _nearby.isEmpty)
-              Container(
-                width: double.infinity,
-                margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8F8EE),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFB6E6C8)),
-                ),
-                child: Row(
-                  children: const [
-                    Icon(Icons.check_circle_outline, color: Color(0xFF1FA85C), size: 18),
-                    SizedBox(width: 6),
-                    Expanded(child: Text('Bu konumda kayıtlı bina yok. Yeni kurabilirsiniz.',
-                        style: TextStyle(fontSize: 13, color: Color(0xFF177A43)))),
-                  ],
-                ),
-              ),
+            // 2 — YENİ EV / BİNA
+            _bigCard(
+              icon: Icons.add_home_work,
+              color: _red,
+              title: 'Yeni Ev / Bina Ekle',
+              subtitle:
+              'Eviniz veya binanız sistemde yok, yönetici olarak siz kuracaksınız.',
+              steps: const ['Konumu işaretle', 'Bina bilgilerini gir', 'Daireleri oluştur'],
+              onTap: () => _goCreate(context, 'residential'),
+            ),
 
-          // 3 SEÇENEK
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 12, left: 4),
-                    child: Text('Bu konumda ne yapmak istiyorsunuz?',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF14213D))),
-                  ),
-                  // Sakin olarak katıl - sadece yakında kayıtlı bina varsa göster
-                  if (_nearby.isNotEmpty)
-                    _actionCard(
-                      icon: Icons.home,
-                      color: const Color(0xFF2D7DD2),
-                      title: 'Sakinim — Eve Katıl',
-                      subtitle: 'Bu binada oturuyorum, daireme bağlanmak istiyorum.',
-                      onTap: _goJoin,
-                    ),
-                  _actionCard(
-                    icon: Icons.apartment,
-                    color: const Color(0xFFE63946),
-                    title: 'Yöneticiyim — Bina / Site Kur',
-                    subtitle: 'Apartman veya sitenin yönetimini ben kuruyorum.',
-                    onTap: () => _goCreate('residential'),
-                  ),
-                  _actionCard(
-                    icon: Icons.store,
-                    color: const Color(0xFFE8830C),
-                    title: 'İşyeri Ekle',
-                    subtitle: 'Dükkan, ofis veya işletme ekliyorum (apartman olsa bile).',
-                    onTap: () => _goCreate('business'),
-                  ),
-                ],
+            const SizedBox(height: 4),
+            // Üçüncül seçenek — küçük tutuldu
+            Center(
+              child: TextButton.icon(
+                onPressed: () => _goCreate(context, 'business'),
+                icon: const Icon(Icons.store, size: 18, color: _orange),
+                label: const Text('İşyeri mi ekleyeceksiniz?',
+                    style: TextStyle(
+                        color: _orange, fontWeight: FontWeight.w600)),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
