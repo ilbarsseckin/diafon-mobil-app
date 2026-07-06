@@ -938,24 +938,63 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showResidents(List<dynamic> residents, Map<String, dynamic> b) {
     showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.6,
-        builder: (_, controller) => Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(b['buildingName'] ?? 'Bina',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            ),
-            Expanded(
-              child: ListView.builder(
-                controller: controller,
-                itemCount: residents.length,
-                itemBuilder: (_, i) {
-                  final r = residents[i] as Map<String, dynamic>;
+        context: context,
+        isScrollControlled: true,
+        builder: (ctx) => StatefulBuilder(
+            builder: (ctx, setSheetState) {
+              String query = '';
+              var filtered = residents;
+              return DraggableScrollableSheet(
+                expand: false,
+                initialChildSize: 0.6,
+                builder: (_, controller) => Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: Text(b['buildingName'] ?? 'Bina',
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: TextField(
+                        decoration: InputDecoration(
+                          hintText: 'Daire no veya isim ara...',
+                          prefixIcon: const Icon(Icons.search, size: 20),
+                          filled: true,
+                          fillColor: const Color(0xFFF2F4F8),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        onChanged: (v) {
+                          setSheetState(() {
+                            query = v.trim().toLowerCase();
+                            filtered = query.isEmpty
+                                ? residents
+                                : residents.where((r) {
+                              final rr = r as Map<String, dynamic>;
+                              final name = (rr['name'] ?? '').toString().toLowerCase();
+                              final flat = (rr['flatNo'] ?? '').toString().toLowerCase();
+                              return name.contains(query) || flat.contains(query);
+                            }).toList();
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (filtered.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text('Sonuç bulunamadı', style: TextStyle(color: Colors.grey)),
+                      ),
+                    Expanded(
+                      child: ListView.builder(
+                        controller: controller,
+                        itemCount: filtered.length,
+                        itemBuilder: (_, i) {
+                          final r = filtered[i] as Map<String, dynamic>;
                   final photo = (r['photoUrl'] ?? '').toString();
                   final isOnline = r['isOnline'] == true;
                   final hasPhoto = photo.isNotEmpty;
@@ -986,12 +1025,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                   );
-                },
-              ),
-            ),
-          ],
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
         ),
-      ),
     );
   }
 

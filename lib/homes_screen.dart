@@ -286,6 +286,7 @@ class _HomesScreenState extends State<HomesScreen> {
                             );
                           },
                         ),
+                      _homeMenu(h),
                     ],
                   ),
                 ),
@@ -352,7 +353,126 @@ class _HomesScreenState extends State<HomesScreen> {
       ),
     );
   }
+  Widget _homeMenu(Map<String, dynamic> h) {
+    final isOwner = h['isOwner'] == true;
+    final residentId = h['residentId']?.toString();
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert, color: Colors.grey),
+      onSelected: (v) {
+        if (v == 'edit') _editBuilding(h);
+        if (v == 'leave') _confirmLeave(h, residentId);
+      },
+      itemBuilder: (_) => [
+        if (isOwner)
+          const PopupMenuItem(
+            value: 'edit',
+            child: Row(children: [
+              Icon(Icons.edit, size: 20, color: Color(0xFF1B2A4A)),
+              SizedBox(width: 10),
+              Text('Bilgileri Düzenle'),
+            ]),
+          ),
+        const PopupMenuItem(
+          value: 'leave',
+          child: Row(children: [
+            Icon(Icons.exit_to_app, size: 20, color: Color(0xFFE63946)),
+            SizedBox(width: 10),
+            Text('Binadan Ayrıl', style: TextStyle(color: Color(0xFFE63946))),
+          ]),
+        ),
+      ],
+    );
+  }
 
+  Future<void> _confirmLeave(Map<String, dynamic> h, String? residentId) async {
+    if (residentId == null || residentId.isEmpty) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Binadan Ayrıl'),
+        content: Text('${_homeTitle(h)} kaydınız silinecek. Bu binadaki komşularınızı arayamayacaksınız. Emin misiniz?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç', style: TextStyle(color: Colors.grey))),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFE63946)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Ayrıl'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ApiService.leaveBuilding(residentId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Binadan ayrıldınız')));
+        _load();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))));
+      }
+    }
+  }
+
+  Future<void> _editBuilding(Map<String, dynamic> h) async {
+    final nameCtrl = TextEditingController(text: (h['siteName'] ?? h['buildingName'] ?? '').toString());
+    final addrCtrl = TextEditingController(text: (h['address'] ?? '').toString());
+    final isSite = h['siteName'] != null;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Bilgileri Düzenle'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameCtrl,
+              decoration: InputDecoration(
+                labelText: isSite ? 'Site Adı' : 'Bina Adı',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: addrCtrl,
+              decoration: InputDecoration(
+                labelText: 'Adres',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç', style: TextStyle(color: Colors.grey))),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF1B2A4A)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Kaydet'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ApiService.updateBuildingInfo(
+        h['buildingId'].toString(),
+        buildingName: isSite ? null : nameCtrl.text.trim(),
+        siteName: isSite ? nameCtrl.text.trim() : null,
+        address: addrCtrl.text.trim(),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bilgiler güncellendi')));
+        _load();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))));
+      }
+    }
+  }
   Widget _residentTile(dynamic r, String sub, String? buildingId) {
     final res = r as Map<String, dynamic>;
     final isOnline = res['isOnline'] == true;

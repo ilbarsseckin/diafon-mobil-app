@@ -213,6 +213,45 @@ class ApiService {
     }
     return [];
   }
+  // Kullanici binadan ayrilir (kendi resident kaydini siler)
+  static Future<Map<String, dynamic>> leaveBuilding(String residentId) async {
+    final token = await getToken();
+    final res = await http.delete(
+      Uri.parse('$baseUrl/apartments/residents/$residentId/leave'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final body = jsonDecode(utf8.decode(res.bodyBytes));
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return Map<String, dynamic>.from(body);
+    }
+    throw Exception(body['message']?.toString() ?? 'Ayrilma islemi basarisiz');
+  }
+
+  // Bina sahibi bina bilgilerini duzenler
+  static Future<Map<String, dynamic>> updateBuildingInfo(
+      String buildingId, {
+        String? buildingName,
+        String? address,
+        String? siteName,
+        String? businessCategory,
+      }) async {
+    final token = await getToken();
+    final res = await http.patch(
+      Uri.parse('$baseUrl/buildings/$buildingId/info'),
+      headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
+      body: jsonEncode({
+        if (buildingName != null) 'buildingName': buildingName,
+        if (address != null) 'address': address,
+        if (siteName != null) 'siteName': siteName,
+        if (businessCategory != null) 'businessCategory': businessCategory,
+      }),
+    );
+    final body = jsonDecode(utf8.decode(res.bodyBytes));
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return Map<String, dynamic>.from(body);
+    }
+    throw Exception(body['message']?.toString() ?? 'Guncelleme basarisiz');
+  }
   // --- Yakındaki görünür binalar (konum modu) ---
   static Future<List<dynamic>> nearbyVisible(double lat, double lng) async {
     final res = await http.get(
