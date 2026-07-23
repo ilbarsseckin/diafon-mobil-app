@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'add_building_screen.dart';
 import 'create_structure_screen.dart';
+import 'vehicles_screen.dart';
 
 /// Basit giriş ekranı: harita/tarama yok, sadece niyet seçimi.
 /// 1) Sakin Olarak Katıl  -> AddBuildingScreen (kendi adres/konum akışı var)
 /// 2) Yeni Ev / Bina Ekle -> CreateStructureScreen (kendi konum akışı var)
+/// 3) Araç QR Ekle        -> VehiclesScreen (araç kartı aktive/yönetim)
 /// (+ küçük seçenek: İşyeri Ekle)
 class LocationActionScreen extends StatelessWidget {
   const LocationActionScreen({super.key});
@@ -13,6 +15,7 @@ class LocationActionScreen extends StatelessWidget {
   static const _navy = Color(0xFF14213D);
   static const _blue = Color(0xFF2D7DD2);
   static const _orange = Color(0xFFE8830C);
+  static const _teal = Color(0xFF2A9D8F);
 
   Future<void> _goJoin(BuildContext context) async {
     final result = await Navigator.push(
@@ -26,6 +29,14 @@ class LocationActionScreen extends StatelessWidget {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => CreateStructureScreen(initialMode: mode)),
+    );
+    if (result == true && context.mounted) Navigator.pop(context, true);
+  }
+
+  Future<void> _goVehicles(BuildContext context) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const VehiclesScreen()),
     );
     if (result == true && context.mounted) Navigator.pop(context, true);
   }
@@ -163,6 +174,17 @@ class LocationActionScreen extends StatelessWidget {
               'Eviniz veya binanız sistemde yok, yönetici olarak siz kuracaksınız.',
               steps: const ['Konumu işaretle', 'Bina bilgilerini gir', 'Daireleri oluştur'],
               onTap: () => _goCreate(context, 'residential'),
+            ),
+
+            // 3 — ARAÇ QR
+            _bigCard(
+              icon: Icons.directions_car,
+              color: _teal,
+              title: 'Araç QR Ekle',
+              subtitle:
+              'Aracınıza QR kartı yapıştırın, numaranız görünmeden size ulaşsınlar.',
+              steps: const ['Kartı okut', 'Plakanı gir', 'Aktive et'],
+              onTap: () => _goVehicles(context),
             ),
 
             const SizedBox(height: 4),

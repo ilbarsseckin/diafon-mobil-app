@@ -41,7 +41,18 @@ class ApiService {
 
   static Future<String?> getToken() => storage.read(key: 'token');
   static Future<String?> getUserName() => storage.read(key: 'userName');
-  static Future<void> logout() => storage.deleteAll();
+  static Future<void> logout() async {
+    final shown = await storage.read(key: 'action_screen_shown');
+    await storage.deleteAll();
+    if (shown == '1') {
+      await storage.write(key: 'action_screen_shown', value: '1');
+    }
+  }
+// Kurulum ekrani bir kez gosterilsin
+  static Future<bool> actionScreenShown() async =>
+      (await storage.read(key: 'action_screen_shown')) == '1';
+  static Future<void> setActionScreenShown() =>
+      storage.write(key: 'action_screen_shown', value: '1');
 
   // --- Görüntü tercihi (çağrılarda kameramı göster/gösterme) ---
   static Future<bool> getVideoEnabled() async {
@@ -326,6 +337,8 @@ class ApiService {
     required double longitude,
     required String flatNo,
     String? floor,
+    String? buildingId,
+
   }) async {
     final token = await getToken();
     final res = await http.post(
@@ -341,6 +354,7 @@ class ApiService {
         'longitude': longitude,
         'flatNo': flatNo,
         'floor': floor,
+        'buildingId': buildingId,
       }),
     );
     return _handle(res);
@@ -659,5 +673,123 @@ class ApiService {
     );
     return _handle(res);
   }
+// ============ ARAÇ (MobilDiafon Auto) ============
+
+
+// Aktivasyon (FIRST-SCAN): etiket kodu + e-posta. Ilk okutan sahiplenir.
+  static Future<Map<String, dynamic>> activateVehicle({
+    required String code,
+    required String email,
+    String? label,
+    String? plate,
+  }) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/vehicles/activate'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      body: jsonEncode({
+        'code': code,
+        'email': email,
+        if (label != null && label.isNotEmpty) 'label': label,
+        if (plate != null && plate.isNotEmpty) 'plate': plate,
+      }),
+    );
+    return _handle(res);
+  }
+
+  // Kendi araçlarım
+  static Future<List<dynamic>> myVehicles() async {
+    final token = await getToken();
+    final res = await http.get(
+      Uri.parse('$baseUrl/vehicles/mine'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      if (body is List) return body;
+    }
+    return [];
+  }
+
+  // Aracı sil
+  static Future<Map<String, dynamic>> deleteVehicle(String id) async {
+    final token = await getToken();
+    final res = await http.delete(
+      Uri.parse('$baseUrl/vehicles/$id'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return _handle(res);
+  }
+
+  // Araç mesajını ayarla/kaldır (sahip)
+  static Future<Map<String, dynamic>> setVehicleMessage(String vehicleId, String? message) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/vehicles/$vehicleId/message'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      body: jsonEncode({'message': message ?? ''}),
+    );
+    return _handle(res);
+  }
+
+  // Aracı pasifle/aktifle (sahip)
+  static Future<Map<String, dynamic>> setVehicleActive(String vehicleId, bool active) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/vehicles/$vehicleId/active'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      body: jsonEncode({'active': active}),
+    );
+    return _handle(res);
+  }
+// Araca bağlı ikincil kişileri listele (sahip)
+  static Future<List<dynamic>> vehicleUsers(String vehicleId) async {
+    final token = await getToken();
+    final res = await http.get(
+      Uri.parse('$baseUrl/vehicles/$vehicleId/users'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      if (body is Map && body['users'] is List) return body['users'];
+    }
+    return [];
+  }
+
+  // Araca telefon no ile ikincil kişi ekle (sahip)
+  static Future<Map<String, dynamic>> addVehicleUser(String vehicleId, String phone) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/vehicles/$vehicleId/users'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      body: jsonEncode({'phone': phone}),
+    );
+    return _handle(res);
+  }
+
+  // Araca bağlı ikincil kişiyi çıkar (sahip)
+  static Future<Map<String, dynamic>> removeVehicleUser(String vehicleId, String userId) async {
+    final token = await getToken();
+    final res = await http.delete(
+      Uri.parse('$baseUrl/vehicles/$vehicleId/users/$userId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return _handle(res);
+  }
+
+
+  // CallKit decline / arka plan reddi - misafire call:rejected ulastirir (soket gerekmez)
+  static Future<void> rejectCall(String callId) async {
+    try {
+      await http.post(
+        Uri.parse('$baseUrl/calls/reject'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'callId': callId}),
+      );
+    } catch (e) {
+      // sessizce gec
+    }
+  }
+
 
 }

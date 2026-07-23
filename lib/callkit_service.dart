@@ -25,7 +25,7 @@ class CallKitService {
         'buildingId': buildingId ?? '',
       },
       android: const AndroidParams(
-        isCustomNotification: true,
+        isCustomNotification: false,        // <-- true'dan false; decline artik app acmaz
         isShowLogo: false,
         ringtonePath: 'system_ringtone_default',
         backgroundColor: '#E63946',

@@ -34,6 +34,8 @@ class _QrScanScreenState extends State<QrScanScreen> {
                   final uri = Uri.tryParse(code);
                   if (uri != null && uri.queryParameters['token'] != null) {
                     token = uri.queryParameters['token']!;
+                  } else if (uri != null && uri.queryParameters['code'] != null) {
+                    token = uri.queryParameters['code']!;
                   }
                   Navigator.pop(context, token);
                 }

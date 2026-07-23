@@ -65,6 +65,16 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     }
   }
 
+  String _formatDate(dynamic iso) {
+    if (iso == null) return '';
+    try {
+      final d = DateTime.parse(iso.toString()).toLocal();
+      return '${d.day}.${d.month}.${d.year}';
+    } catch (_) {
+      return '';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -77,113 +87,212 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFFE63946)))
           : _error != null
-              ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_error!, style: const TextStyle(color: Colors.grey))))
-              : _subs.isEmpty
-                  ? const Center(child: Padding(padding: EdgeInsets.all(24), child: Text('Henüz aboneliğiniz yok.', style: TextStyle(color: Colors.grey, fontSize: 15))))
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: _subs.length,
-                      itemBuilder: (_, i) {
-                        final sub = _subs[i] as Map<String, dynamic>;
-                        final status = sub['status']?.toString() ?? 'expired';
-                        final daysLeft = sub['daysLeft'] ?? 0;
-                        final monthlyPrice = (sub['monthlyPrice'] ?? 0) as num;
-                        final yearlyPrice = monthlyPrice * 10; // 2 ay hediye
-                        final name = (sub['scopeName'] ?? sub['label'] ?? 'Abonelik').toString();
-                        final label = (sub['label'] ?? '').toString();
+          ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_error!, style: const TextStyle(color: Colors.grey))))
+          : _subs.isEmpty
+          ? const Center(child: Padding(padding: EdgeInsets.all(24), child: Text('Henüz aboneliğiniz yok.', style: TextStyle(color: Colors.grey, fontSize: 15))))
+          : ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _subs.length,
+        itemBuilder: (_, i) {
+          final sub = _subs[i] as Map<String, dynamic>;
+          final isAuto = (sub['scopeType']?.toString() ?? '') == 'auto';
+          return isAuto ? _autoCard(sub) : _buildingCard(sub);
+        },
+      ),
+    );
+  }
 
-                        return Card(
-                          color: Colors.white,
-                          elevation: 0,
-                          margin: const EdgeInsets.only(bottom: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            side: BorderSide(color: Colors.grey.shade200),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(name, style: const TextStyle(color: Color(0xFF14213D), fontSize: 17, fontWeight: FontWeight.bold)),
-                                          if (label.isNotEmpty && label != name)
-                                            Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-                                        ],
-                                      ),
-                                    ),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: _statusColor(status).withValues(alpha: 0.12),
-                                        borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(color: _statusColor(status)),
-                                      ),
-                                      child: Text(_statusText(status), style: TextStyle(color: _statusColor(status), fontSize: 12, fontWeight: FontWeight.w600)),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 10),
-                                Row(
-                                  children: [
-                                    Icon(Icons.schedule, size: 16, color: Colors.grey[500]),
-                                    const SizedBox(width: 6),
-                                    Text(status == 'expired' || status == 'pending_payment'
-                                        ? 'Süresi doldu'
-                                        : 'Kalan süre: $daysLeft gün',
-                                        style: TextStyle(color: Colors.grey[700], fontSize: 13)),
-                                  ],
-                                ),
-                                const Divider(height: 24),
-                                const Text('Ödeme Seçenekleri', style: TextStyle(color: Color(0xFF14213D), fontSize: 13, fontWeight: FontWeight.w600)),
-                                const SizedBox(height: 10),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: OutlinedButton(
-                                        onPressed: () => _openPayment(sub['id'].toString(), 'monthly'),
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor: const Color(0xFFE63946),
-                                          side: const BorderSide(color: Color(0xFFE63946)),
-                                          padding: const EdgeInsets.symmetric(vertical: 12),
-                                        ),
-                                        child: Column(
-                                          children: [
-                                            const Text('Aylık', style: TextStyle(fontSize: 12)),
-                                            Text('${monthlyPrice.toStringAsFixed(0)} TL', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: FilledButton(
-                                        onPressed: () => _openPayment(sub['id'].toString(), 'yearly'),
-                                        style: FilledButton.styleFrom(
-                                          backgroundColor: const Color(0xFFE63946),
-                                          padding: const EdgeInsets.symmetric(vertical: 12),
-                                        ),
-                                        child: Column(
-                                          children: [
-                                            const Text('Yıllık (2 ay hediye)', style: TextStyle(fontSize: 11)),
-                                            Text('${yearlyPrice.toStringAsFixed(0)} TL', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
+  // ---- ARAÇ ABONELİĞİ KARTI (1 yıllık peşin, ödeme butonu yok) ----
+  Widget _autoCard(Map<String, dynamic> sub) {
+    final status = sub['status']?.toString() ?? 'active';
+    final daysLeft = sub['daysLeft'] ?? 0;
+    final name = (sub['label'] ?? sub['scopeName'] ?? 'Araç').toString();
+    final endDate = _formatDate(sub['periodEnd']);
+
+    return Card(
+      color: Colors.white,
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 44, height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE63946).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.directions_car, color: Color(0xFFE63946)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(name, style: const TextStyle(color: Color(0xFF14213D), fontSize: 17, fontWeight: FontWeight.bold)),
+                      Text('Araç Etiketi Aboneliği', style: TextStyle(color: Colors.grey[600], fontSize: 12.5)),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _statusColor(status).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: _statusColor(status)),
+                  ),
+                  child: Text(_statusText(status), style: TextStyle(color: _statusColor(status), fontSize: 12, fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.schedule, size: 16, color: Colors.grey[500]),
+                const SizedBox(width: 6),
+                Text(status == 'expired'
+                    ? 'Süresi doldu'
+                    : 'Kalan süre: $daysLeft gün',
+                    style: TextStyle(color: Colors.grey[700], fontSize: 13)),
+              ],
+            ),
+            if (endDate.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Icon(Icons.event_available, size: 16, color: Colors.grey[500]),
+                  const SizedBox(width: 6),
+                  Text('Yenileme tarihi: $endDate', style: TextStyle(color: Colors.grey[700], fontSize: 13)),
+                ],
+              ),
+            ],
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F4F8),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                status == 'expired'
+                    ? 'Aboneliğinizin süresi doldu. Yeni kart ile yenileyebilirsiniz.'
+                    : 'Kart alımında 1 yıllık aboneliğiniz dahildir. Ek ödeme gerekmez.',
+                style: TextStyle(color: Colors.grey[700], fontSize: 12.5, height: 1.3),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---- BİNA / SİTE ABONELİĞİ KARTI (ödeme seçenekli, orijinal) ----
+  Widget _buildingCard(Map<String, dynamic> sub) {
+    final status = sub['status']?.toString() ?? 'expired';
+    final daysLeft = sub['daysLeft'] ?? 0;
+    final monthlyPrice = (sub['monthlyPrice'] ?? 0) as num;
+    final yearlyPrice = monthlyPrice * 10;
+    final name = (sub['label'] ?? sub['scopeName'] ?? 'Abonelik').toString();
+    final label = (sub['label'] ?? '').toString();
+
+    return Card(
+      color: Colors.white,
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(name, style: const TextStyle(color: Color(0xFF14213D), fontSize: 17, fontWeight: FontWeight.bold)),
+                      if (label.isNotEmpty && label != name)
+                        Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _statusColor(status).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: _statusColor(status)),
+                  ),
+                  child: Text(_statusText(status), style: TextStyle(color: _statusColor(status), fontSize: 12, fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Icon(Icons.schedule, size: 16, color: Colors.grey[500]),
+                const SizedBox(width: 6),
+                Text(status == 'expired' || status == 'pending_payment'
+                    ? 'Süresi doldu'
+                    : 'Kalan süre: $daysLeft gün',
+                    style: TextStyle(color: Colors.grey[700], fontSize: 13)),
+              ],
+            ),
+            const Divider(height: 24),
+            const Text('Ödeme Seçenekleri', style: TextStyle(color: Color(0xFF14213D), fontSize: 13, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _openPayment(sub['id'].toString(), 'monthly'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFE63946),
+                      side: const BorderSide(color: Color(0xFFE63946)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
+                    child: Column(
+                      children: [
+                        const Text('Aylık', style: TextStyle(fontSize: 12)),
+                        Text('${monthlyPrice.toStringAsFixed(0)} TL', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => _openPayment(sub['id'].toString(), 'yearly'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFE63946),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: Column(
+                      children: [
+                        const Text('Yıllık (2 ay hediye)', style: TextStyle(fontSize: 11)),
+                        Text('${yearlyPrice.toStringAsFixed(0)} TL', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

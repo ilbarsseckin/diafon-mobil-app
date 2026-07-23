@@ -183,6 +183,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
     setState(() => _submitting = true);
     try {
       final res = await ApiService.joinBuilding(
+        buildingId: b['id']?.toString(),
         buildingName:
         (b['buildingName'] ?? b['siteName'] ?? 'Bina').toString(),
         address: (b['address'] ?? '').toString(),
@@ -239,9 +240,11 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
   }
 
   String _buildingLabel(Map<String, dynamic> b) {
-    final site = b['siteName']?.toString();
+    final site = b['siteName']?.toString() ?? '';
+    final block = b['blockName']?.toString() ?? '';
     final name = b['buildingName']?.toString() ?? 'Bina';
-    if (site != null && site.isNotEmpty) return site;
+    if (site.isNotEmpty && block.isNotEmpty) return '$site — $block';
+    if (site.isNotEmpty) return site;
     return name;
   }
 

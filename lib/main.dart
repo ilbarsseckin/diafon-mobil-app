@@ -1,3 +1,4 @@
+import 'package:diafon_mobil_app/vehicles_screen.dart';
 import 'package:diafon_mobil_app/webview_screen.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -162,6 +163,19 @@ class _SplashScreenState extends State<SplashScreen> {
     } catch (e) {
       // hata olursa yine de ana ekrana git
     }
+    // Bina yoksa bile aracı varsa kurulum ekranını açma
+    // Bina yoksa bile aracı varsa kurulum ekranını açma
+    print('OTURUM: bina registered=$registered');
+    if (!registered) {
+      try {
+        final vehicles = await ApiService.myVehicles();
+        print('OTURUM: arac sayisi=${vehicles.length}');
+        if (vehicles.isNotEmpty) registered = true;
+      } catch (e) {
+        print('OTURUM: arac hatasi=$e');
+      }
+    }
+    print('OTURUM: sonuc registered=$registered');
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
@@ -298,6 +312,13 @@ class _LoginScreenState extends State<LoginScreen> {
         final status = await ApiService.myBuildingStatus();
         registered = status['registered'] == true;
       } catch (_) {}
+      // Bina yoksa bile aracı varsa kurulum ekranını açma
+      if (!registered) {
+        try {
+          final vehicles = await ApiService.myVehicles();
+          if (vehicles.isNotEmpty) registered = true;
+        } catch (_) {}
+      }
       if (mounted) {
         Navigator.pushReplacement(
           context,
@@ -621,7 +642,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openAddBuilding() async {
-    // Misafir ise üyeliğe yönlendir
+    // Kurulum ekrani sadece bir kez gosterilir
+    if (await ApiService.actionScreenShown()) return;
+    await ApiService.setActionScreenShown();
+    if (!mounted) return;
+    // Misafir ise Ã¼yeliÄŸe yÃ¶nlendir
     if (widget.guest) {
       _showGuestPrompt();
       return;
@@ -744,7 +769,11 @@ class _HomeScreenState extends State<HomeScreen> {
       } else if (event is CallEventActionCallDecline) {
         final extra = event.callKitParams.extra ?? {};
         final callId = (extra['callId'] ?? event.callKitParams.id ?? '').toString();
-        // Socket bağlı değilse bağlan, sonra reddi gönder
+        // Once REST ile reddet (arka planda soket bagli olmayabilir, en garantisi bu)
+        if (callId.isNotEmpty) {
+          ApiService.rejectCall(callId);
+        }
+        // Uygulama aciksa soket emit'i de ekstra guvence olsun
         () async {
           if (!SocketService.isConnected) {
             await SocketService.connect();
@@ -1149,63 +1178,76 @@ class _HomeScreenState extends State<HomeScreen> {
         child: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 30),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: widget.guest ? null : BottomAppBar(
+      bottomNavigationBar: widget.guest
+          ? null
+          : BottomAppBar(
         shape: const CircularNotchedRectangle(),
         notchMargin: 8,
         color: Colors.white,
         child: SizedBox(
-          height: 56,
+          height: 64,
           child: Row(
             children: [
               Expanded(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _bottomBarItem(
-                      icon: Icons.home,
-                      label: 'Evlerim',
-                      onTap: () {
-                        if (widget.guest) { _showGuestPrompt(); return; }
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => Scaffold(
-                              appBar: AppBar(
-                                title: const Text('Evlerim'),
-                                backgroundColor: const Color(0xFFE63946),
-                                foregroundColor: Colors.white,
-                              ),
-                              body: const HomesScreen(),
-                            ),
+                child: _bottomBarItem(
+                  icon: Icons.home,
+                  label: 'Evlerim',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => Scaffold(
+                          appBar: AppBar(
+                            title: const Text('Evlerim'),
+                            backgroundColor: const Color(0xFFE63946),
+                            foregroundColor: Colors.white,
                           ),
-                        );
-                      },
-                    ),
-                    _bottomBarItem(
-                      icon: Icons.shield,
-                      label: 'Güvenlik',
-                      onTap: widget.guest ? _showGuestPrompt : _callSecurity,
-                    ),
-                  ],
+                          body: const HomesScreen(),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
-              const SizedBox(width: 48),
+
               Expanded(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _bottomBarItem(
-                      icon: Icons.history,
-                      label: 'Geçmiş',
-                      onTap: () {
-                        if (widget.guest) { _showGuestPrompt(); return; }
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const CallHistoryScreen()),
-                        );
-                      },
-                    ),
-                  ],
+                child: _bottomBarItem(
+                  icon: Icons.directions_car,
+                  label: 'Araçlar',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const VehiclesScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+              // Ortadaki QR butonu için alan
+              const SizedBox(width: 72),
+
+              Expanded(
+                child: _bottomBarItem(
+                  icon: Icons.shield,
+                  label: 'Güvenlik',
+                  onTap: _callSecurity,
+                ),
+              ),
+
+              Expanded(
+                child: _bottomBarItem(
+                  icon: Icons.history,
+                  label: 'Çağrılar',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const CallHistoryScreen(),
+                      ),
+                    );
+                  },
                 ),
               ),
             ],
@@ -1216,22 +1258,29 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _bottomBarItem({required IconData icon, required String label, required VoidCallback onTap}) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: const Color(0xFFE63946), size: 24),
-            const SizedBox(height: 2),
-            Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFFE63946))),
-          ],
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: const Color(0xFFE63946), size: 22),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.visible,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 9.5, color: Color(0xFFE63946)),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
-
   Future<void> _scanQr() async {
     final token = await Navigator.push<String>(
       context,

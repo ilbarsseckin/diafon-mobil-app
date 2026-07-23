@@ -146,9 +146,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!mounted) return;
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (_) => OnboardingScreen(
+      MaterialPageRoute(builder: (ctx) => OnboardingScreen(
         onFinish: () {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+          Navigator.pushReplacement(ctx, MaterialPageRoute(builder: (_) => const LoginScreen()));
         },
       )),
           (route) => false,
