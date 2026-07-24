@@ -1,3 +1,5 @@
+import 'package:diafon_mobil_app/vehicle_activate_screen.dart';
+import 'package:diafon_mobil_app/vehicle_contact_screen.dart';
 import 'package:diafon_mobil_app/vehicles_screen.dart';
 import 'package:diafon_mobil_app/webview_screen.dart';
 import 'package:flutter/gestures.dart';
@@ -24,6 +26,7 @@ import 'qr_scan_screen.dart';
 import 'call_history_screen.dart';
 import 'nearby_screen.dart';
 import 'background_service.dart';
+import 'permissions_screen.dart';
 // Arka planda/kapalıyken gelen FCM mesajını yakalar
 @pragma('vm:entry-point')
 Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
@@ -105,6 +108,8 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _bootstrapCallPermissions() async {
     // Android 13+ bildirim izni
     await Permission.notification.request();
+    await Permission.microphone.request();
+    await Permission.camera.request();
     // Android 14+/16: CallKit'in kilit ekraninda tam ekran acabilmesi icin
     try {
       final canFull = await FlutterCallkitIncoming.canUseFullScreenIntent();
@@ -564,7 +569,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _loading = true;
   String? _error;
   List<dynamic> _buildings = [];
@@ -574,6 +579,62 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _trialInfo; // deneme/abonelik durumu (toolbar rozeti)
   bool _dnd = false;
 
+  List<String> _eksikIzinler = [];
+
+  Future<void> _checkNotifPermission() async {
+    final eksik = <String>[];
+    if (!await Permission.notification.isGranted) eksik.add('Bildirim');
+    if (!await Permission.microphone.isGranted) eksik.add('Mikrofon');
+    if (!await Permission.camera.isGranted) eksik.add('Kamera');
+    if (mounted && eksik.join(',') != _eksikIzinler.join(',')) {
+      setState(() => _eksikIzinler = eksik);
+    }
+  }
+  Widget _notifBanner() {
+    return Material(
+      color: const Color(0xFFE63946),
+      child: InkWell(
+        onTap: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const PermissionsScreen()),
+          );
+          _checkNotifPermission();
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            children: [
+              const Icon(Icons.notifications_off, color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _eksikIzinler.length == 1
+                  ? '${_eksikIzinler.first} izni kapalı — uygulama düzgün çalışmayabilir'
+                  : '${_eksikIzinler.join(", ")} izinleri kapalı — uygulama düzgün çalışmayabilir',
+              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text('Aç',
+                    style: TextStyle(
+                        color: Color(0xFFE63946), fontSize: 12.5, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _checkNotifPermission();
+  }
   Future<void> _checkDnd() async {
     try {
       final v = await ApiService.getDndMode();
@@ -639,6 +700,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (widget.autoAddBuilding) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _openAddBuilding());
     }
+    WidgetsBinding.instance.addObserver(this);
+    _checkNotifPermission();
   }
 
   Future<void> _openAddBuilding() async {
@@ -702,6 +765,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _callkitSub?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
@@ -1163,14 +1227,15 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
         ],
-      ),
-      body: Column(
-        children: [
-          if (widget.guest) _guestBanner(),
-          if (_deletionDaysLeft >= 0) _deletionBanner(),
-          Expanded(child: _buildBody()),
-        ],
-      ),
+      ),body: Column(
+      children: [
+        if (widget.guest) _guestBanner(),
+        if (_deletionDaysLeft >= 0) _deletionBanner(),
+        if (_eksikIzinler.isNotEmpty && !widget.guest) _notifBanner(),
+
+        Expanded(child: _buildBody()),
+      ],
+    ),
       floatingActionButton: FloatingActionButton(
         onPressed: _scanQr,
         backgroundColor: const Color(0xFFE63946),
@@ -1282,11 +1347,21 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
   Future<void> _scanQr() async {
-    final token = await Navigator.push<String>(
+    final raw = await Navigator.push<String>(
       context,
       MaterialPageRoute(builder: (_) => const QrScanScreen()),
     );
-    if (token == null || token.isEmpty) return;
+    if (raw == null || raw.isEmpty) return;
+    print('QR HAM: $raw');
+    // Arac QR mi bina QR mi?
+    final uri = Uri.tryParse(raw);
+    final vehCode = uri?.queryParameters['code'];
+    if (vehCode != null && vehCode.isNotEmpty) {
+      await _handleVehicleQr(vehCode);
+      return;
+    }
+    final token = uri?.queryParameters['token'] ?? raw;
+
     try {
       final data = await ApiService.nearbyByQr(token);
       final residents = (data['residents'] as List?) ?? [];
@@ -1310,6 +1385,45 @@ class _HomeScreenState extends State<HomeScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
         );
+      }
+    }
+  }
+
+  Future<void> _handleVehicleQr(String code) async {
+    try {
+      final v = await ApiService.lookupVehicle(code);
+      if (!mounted) return;
+      print('ARAC LOOKUP: kod=$code yanit=$v');
+      if (v['found'] != true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Geçersiz araç kartı')));
+        return;
+      }
+
+      // Henuz aktive edilmemis kart -> aktivasyon ekrani
+      if (v['canCall'] != true) {
+        if (widget.guest) {
+          _showGuestPrompt();
+          return;
+        }
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (_) => VehicleActivateScreen(initialCode: code)),
+        );
+        return;
+      }
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => VehicleContactScreen(code: code, data: v),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', ''))));
       }
     }
   }

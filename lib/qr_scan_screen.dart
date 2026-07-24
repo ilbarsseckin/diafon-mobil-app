@@ -3,7 +3,6 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 class QrScanScreen extends StatefulWidget {
   const QrScanScreen({super.key});
-
   @override
   State<QrScanScreen> createState() => _QrScanScreenState();
 }
@@ -29,20 +28,14 @@ class _QrScanScreenState extends State<QrScanScreen> {
                 final code = barcodes.first.rawValue;
                 if (code != null && code.isNotEmpty) {
                   _handled = true;
-                  // QR bir URL ise icinden token parametresini ayikla
-                  String token = code;
-                  final uri = Uri.tryParse(code);
-                  if (uri != null && uri.queryParameters['token'] != null) {
-                    token = uri.queryParameters['token']!;
-                  } else if (uri != null && uri.queryParameters['code'] != null) {
-                    token = uri.queryParameters['code']!;
-                  }
-                  Navigator.pop(context, token);
+                  // Ham veriyi don; ayristirmayi cagiran taraf yapar
+                  // (bina QR -> token=..., arac QR -> code=...)
+                  Navigator.pop(context, code);
                 }
               }
             },
           ),
-          // Ortada hedef çerçeve
+          // Ortada hedef cerceve
           Center(
             child: Container(
               width: 240,
@@ -54,7 +47,9 @@ class _QrScanScreenState extends State<QrScanScreen> {
             ),
           ),
           Positioned(
-            bottom: 40, left: 0, right: 0,
+            bottom: 40,
+            left: 0,
+            right: 0,
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 32),
               padding: const EdgeInsets.all(12),
@@ -63,7 +58,7 @@ class _QrScanScreenState extends State<QrScanScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Text(
-                'Binanın girişindeki QR kodu kameraya gösterin',
+                'Bina girişindeki veya araçtaki QR kodu kameraya gösterin',
                 style: TextStyle(color: Colors.white, fontSize: 14),
                 textAlign: TextAlign.center,
               ),

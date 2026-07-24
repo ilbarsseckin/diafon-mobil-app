@@ -11,7 +11,8 @@ import 'qr_scan_screen.dart';
 /// sonra cama yapıştır" akışına dayanır — bu yuzden ekranda ve kılavuzda
 /// bu sıra vurgulanır.
 class VehicleActivateScreen extends StatefulWidget {
-  const VehicleActivateScreen({super.key});
+  final String? initialCode;
+  const VehicleActivateScreen({super.key, this.initialCode});
 
   @override
   State<VehicleActivateScreen> createState() => _VehicleActivateScreenState();
@@ -22,6 +23,12 @@ class _VehicleActivateScreenState extends State<VehicleActivateScreen> {
   final _emailCtrl = TextEditingController();
   final _labelCtrl = TextEditingController();
   final _plateCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialCode != null) _codeCtrl.text = widget.initialCode!;
+  }
   bool _saving = false;
   bool _scanned = false;
 

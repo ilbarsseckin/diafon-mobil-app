@@ -696,7 +696,26 @@ class ApiService {
     );
     return _handle(res);
   }
+// Arac kartini sorgula (QR okutunca) - giris gerekmez
+  static Future<Map<String, dynamic>> lookupVehicle(String code) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/vehicles/lookup/${Uri.encodeComponent(code)}'),
+    );
+    return _handle(res);
+  }
 
+  // Arac sahibine zil cal
+  static Future<Map<String, dynamic>> ringVehicle(String code) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/vehicles/ring/${Uri.encodeComponent(code)}'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+    return _handle(res);
+  }
   // Kendi araçlarım
   static Future<List<dynamic>> myVehicles() async {
     final token = await getToken();
