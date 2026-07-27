@@ -45,6 +45,12 @@ class _CallScreenState extends State<CallScreen> {
   Timer? _timer;
   int _seconds = 0;
 
+  // --- Gorusme suresi siniri (sunucudan yonetilir) ---
+  Timer? _limitTimer;
+  int? _remaining; // null = sinir yok
+  bool _timedOut = false;
+  bool _uzatmaHakki = true; // tek uzatma hakki
+
   final Map<String, dynamic> _iceConfig = {
     'iceServers': [
       {'urls': 'stun:stun.l.google.com:19302'},
@@ -147,6 +153,46 @@ class _CallScreenState extends State<CallScreen> {
     return '$m:$s';
   }
 
+  // --- Sure siniri ---
+
+  /// Sunucu 'call:limit' veya 'call:extended' gonderince calisir.
+  void _startLimitCountdown(int seconds) {
+    _limitTimer?.cancel();
+    if (!mounted) return;
+    setState(() {
+      _remaining = seconds;
+      _timedOut = false;
+    });
+    _limitTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) { t.cancel(); return; }
+      final r = (_remaining ?? 0) - 1;
+      setState(() => _remaining = r < 0 ? 0 : r);
+      if (r <= 0) t.cancel();
+    });
+  }
+
+  void _stopLimitCountdown() {
+    _limitTimer?.cancel();
+    _limitTimer = null;
+  }
+
+  bool get _uzatabilir => !widget.isCaller; // sadece aranan uzatabilir
+
+  void _uzat() {
+    if (_callId == null || !_uzatmaHakki) return;
+    setState(() => _uzatmaHakki = false); // cift tiklama korumasi
+    SocketService.emit('call:extend', {'callId': _callId});
+  }
+
+  int _limitSaniye(dynamic data, String key, int fallback) {
+    if (data is Map && data[key] != null) {
+      final v = data[key];
+      if (v is int) return v;
+      return int.tryParse(v.toString()) ?? fallback;
+    }
+    return fallback;
+  }
+
   void _setupSocketListeners() {
     SocketService.on('call:ringing', (data) {
       _callId = data['callId'];
@@ -196,6 +242,43 @@ class _CallScreenState extends State<CallScreen> {
         ));
       } catch (e) {
         // remote henüz set edilmemişse ICE eklenemez, sessizce geç
+      }
+    });
+
+    // --- Gorusme suresi olaylari ---
+    SocketService.on('call:limit', (data) {
+      _startLimitCountdown(_limitSaniye(data, 'seconds', 45));
+    });
+
+    SocketService.on('call:extended', (data) {
+      _startLimitCountdown(_limitSaniye(data, 'seconds', 45));
+      final kalanHak = _limitSaniye(data, 'remainingExtends', 0);
+      if (mounted) setState(() => _uzatmaHakki = kalanHak > 0);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Görüşme süresi uzatıldı'),
+          duration: Duration(seconds: 2),
+        ));
+      }
+    });
+
+    SocketService.on('call:extend-denied', (_) {
+      if (mounted) setState(() => _uzatmaHakki = false);
+    });
+
+    SocketService.on('call:warning', (data) {
+      final r = _limitSaniye(data, 'remaining', 10);
+      if (mounted) setState(() => _remaining = r);
+    });
+
+    SocketService.on('call:timeout', (_) {
+      _stopLimitCountdown();
+      if (mounted) {
+        setState(() {
+          _timedOut = true;
+          _remaining = 0;
+          _status = 'Görüşme süresi doldu';
+        });
       }
     });
 
@@ -321,6 +404,7 @@ class _CallScreenState extends State<CallScreen> {
 
   void _cleanup() {
     _timer?.cancel();
+    _limitTimer?.cancel();
     SocketService.off('call:ringing');
     SocketService.off('call:accepted');
     SocketService.off('webrtc:offer');
@@ -329,6 +413,11 @@ class _CallScreenState extends State<CallScreen> {
     SocketService.off('call:rejected');
     SocketService.off('call:ended');
     SocketService.off('call:unavailable');
+    SocketService.off('call:limit');
+    SocketService.off('call:warning');
+    SocketService.off('call:extended');
+    SocketService.off('call:extend-denied');
+    SocketService.off('call:timeout');
     _localStream?.getTracks().forEach((t) => t.stop());
     _localStream?.dispose();
     _pc?.close();
@@ -342,8 +431,43 @@ class _CallScreenState extends State<CallScreen> {
     super.dispose();
   }
 
+  /// Kalan sure rozeti. Son 10 sn'de buyur ve kirmiziya doner.
+  Widget _kalanRozet() {
+    final r = _remaining!;
+    final kritik = r <= 10;
+    final txt = '0:${r.toString().padLeft(2, '0')}';
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: kritik ? 16 : 12, vertical: kritik ? 6 : 4),
+      decoration: BoxDecoration(
+        color: kritik ? const Color(0xFFE63946) : Colors.black54,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.timer_outlined,
+              size: kritik ? 18 : 14,
+              color: kritik ? Colors.white : Colors.white70),
+          const SizedBox(width: 6),
+          Text(
+            txt,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: kritik ? 20 : 14,
+              fontWeight: kritik ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final r = _remaining;
+    final uzatmaGoster =
+        _uzatabilir && _connected && r != null && r <= 15 && !_timedOut && _uzatmaHakki;
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
@@ -375,11 +499,23 @@ class _CallScreenState extends State<CallScreen> {
                   children: [
                     Text(widget.peerName, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(12)),
-                      child: Text(_durationText, style: const TextStyle(color: Colors.white, fontSize: 14)),
-                    ),
+                    if (r != null)
+                      _kalanRozet()
+                    else
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(12)),
+                        child: Text(_durationText, style: const TextStyle(color: Colors.white, fontSize: 14)),
+                      ),
+                    if (_timedOut) ...[
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(12)),
+                        child: const Text('Görüşme süresi doldu',
+                            style: TextStyle(color: Colors.white, fontSize: 13)),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -396,6 +532,24 @@ class _CallScreenState extends State<CallScreen> {
                 ),
               ),
             ),
+            // Sureyi uzat (sadece aranan taraf, son 15 sn)
+            if (uzatmaGoster)
+              Positioned(
+                bottom: 116, left: 0, right: 0,
+                child: Center(
+                  child: FilledButton.icon(
+                    onPressed: _uzat,
+                    icon: const Icon(Icons.more_time, size: 18),
+                    label: const Text('+45 sn uzat'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black87,
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                    ),
+                  ),
+                ),
+              ),
             Positioned(
               bottom: 40, left: 0, right: 0,
               child: Row(

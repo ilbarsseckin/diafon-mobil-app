@@ -750,7 +750,17 @@ class ApiService {
     );
     return _handle(res);
   }
-
+// Araç etiketi / plaka güncelle (sahip)
+  static Future<Map<String, dynamic>> setVehicleInfo(
+      String vehicleId, String label, String plate) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/vehicles/$vehicleId/info'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      body: jsonEncode({'label': label, 'plate': plate}),
+    );
+    return _handle(res);
+  }
   // Aracı pasifle/aktifle (sahip)
   static Future<Map<String, dynamic>> setVehicleActive(String vehicleId, bool active) async {
     final token = await getToken();

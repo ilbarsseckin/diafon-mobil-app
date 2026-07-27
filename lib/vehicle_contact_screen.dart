@@ -235,7 +235,7 @@ class _VehicleContactScreenState extends State<VehicleContactScreen> {
                         child: CircularProgressIndicator(
                             strokeWidth: 2, color: _orange))
                     : const Icon(Icons.notifications_active),
-                label: Text(_ringing ? 'Gönderiliyor...' : 'Zil Çal',
+                label: Text(_ringing ? 'Gönderiliyor...' : 'Haber Ver',
                     style: const TextStyle(
                         fontSize: 16, fontWeight: FontWeight.bold)),
               ),

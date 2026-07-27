@@ -99,6 +99,118 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     }
   }
 
+  // Arac etiketi / plaka duzenleme
+  Future<void> _editInfo(Map<String, dynamic> v) async {
+    final labelCtrl = TextEditingController(text: (v['label'] ?? '').toString());
+    final plateCtrl = TextEditingController(text: (v['plate'] ?? '').toString());
+    bool busy = false;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheet) {
+            Future<void> kaydet() async {
+              setSheet(() => busy = true);
+              try {
+                await ApiService.setVehicleInfo(
+                  v['id'].toString(),
+                  labelCtrl.text.trim(),
+                  plateCtrl.text.trim(),
+                );
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Araç bilgileri güncellendi')),
+                  );
+                  _load();
+                }
+              } catch (e) {
+                setSheet(() => busy = false);
+                if (ctx.mounted) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+                  );
+                }
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20, right: 20, top: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: const [
+                      Icon(Icons.edit_outlined, color: _navy),
+                      SizedBox(width: 10),
+                      Text('Araç Bilgileri',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text('Aracınızı tanımanız için kullanılır. Plaka, QR okutan kişiye gösterilmez.',
+                      style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                  const SizedBox(height: 18),
+                  TextField(
+                    controller: labelCtrl,
+                    maxLength: 40,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: InputDecoration(
+                      labelText: 'Araç Etiketi',
+                      hintText: 'Örn: Kırmızı Clio',
+                      prefixIcon: const Icon(Icons.label_outline),
+                      counterText: '',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: plateCtrl,
+                    maxLength: 20,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: InputDecoration(
+                      labelText: 'Plaka',
+                      hintText: 'Örn: 34 ABC 123',
+                      prefixIcon: const Icon(Icons.pin_outlined),
+                      counterText: '',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: busy ? null : kaydet,
+                      icon: busy
+                          ? const SizedBox(
+                          width: 18, height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.check, size: 18),
+                      label: Text(busy ? 'Kaydediliyor...' : 'Kaydet'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _red,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _openMessagePanel(Map<String, dynamic> v) async {
     final current = (v['activeMessage'] ?? '').toString();
     final textCtrl = TextEditingController(text: current);
@@ -533,11 +645,20 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert, color: Colors.grey),
                     onSelected: (val) {
+                      if (val == 'edit') _editInfo(v);
                       if (val == 'toggle') _toggleActive(v);
                       if (val == 'users') _openUsersPanel(v);
                       if (val == 'delete') _confirmDelete(v);
                     },
                     itemBuilder: (_) => [
+                      const PopupMenuItem(
+                        value: 'edit',
+                        child: Row(children: [
+                          Icon(Icons.edit_outlined, size: 20, color: _navy),
+                          SizedBox(width: 10),
+                          Text('Bilgileri Düzenle'),
+                        ]),
+                      ),
                       PopupMenuItem(
                         value: 'toggle',
                         child: Row(children: [
