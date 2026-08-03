@@ -118,7 +118,8 @@ class _HomesScreenState extends State<HomesScreen> {
         return sm;
       }
     }
-    return _subs.isNotEmpty ? _subs.first as Map<String, dynamic> : null;
+    // Eslesme yoksa null don (yanlis binaya yanlis durum gostermemek icin)
+    return null;
   }
   void _call(String userId, String name, String? buildingId) {
     if (userId.isEmpty) return;
@@ -526,8 +527,13 @@ class _HomesScreenState extends State<HomesScreen> {
     final tappable = status == 'expired' || status == 'pending_payment';
     final badge = Container(
       margin: const EdgeInsets.only(top: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+      width: tappable ? double.infinity : null,
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: tappable ? 10 : 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(tappable ? 10 : 20),
+        border: tappable ? Border.all(color: fg, width: 1) : null,
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

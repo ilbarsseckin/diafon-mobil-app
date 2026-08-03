@@ -6,6 +6,10 @@ class ApiService {
   static const String baseUrl = 'https://mobildiafon.com/api';
   static const storage = FlutterSecureStorage();
 
+
+
+
+
   static Future<Map<String, dynamic>> register(String name, String phone) async {
     final res = await http.post(
       Uri.parse('$baseUrl/auth/register'),
@@ -280,6 +284,7 @@ class ApiService {
     required String name,
     required String deviceId,
     String adapter = 'tuya',
+    String? mqttUser,                    // ← EKLE
   }) async {
     final token = await getToken();
     final res = await http.post(
@@ -290,6 +295,7 @@ class ApiService {
         'name': name,
         'deviceId': deviceId,
         'adapter': adapter,
+        if (mqttUser != null) 'mqttUser': mqttUser,   // ← EKLE
       }),
     );
     return _handle(res);
@@ -326,6 +332,32 @@ class ApiService {
       Uri.parse('$baseUrl/door/open'),
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
       body: jsonEncode({'doorId': doorId, if (callId != null) 'callId': callId}),
+    );
+    return _handle(res);
+  }
+
+  // --- SHELLY KURULUM SİHİRBAZI: cihaza özel MQTT kimliği al ---
+  // Backend: POST /door/provision-credentials { buildingId }
+  // Dönen: { success, mqttServer, mqttUser, mqttPassword }
+  static Future<Map<String, dynamic>> provisionDoorCredentials(String buildingId) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/door/provision-credentials'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      body: jsonEncode({'buildingId': buildingId}),
+    );
+    return _handle(res);
+  }
+
+  // --- SHELLY KURULUM SİHİRBAZI: cihaz çevrimiçi mi doğrula ---
+  // Backend: POST /door/verify { deviceId } -> ShellyMqttAdapter.verify()
+  // Dönen: { ok, online, message? }
+  static Future<Map<String, dynamic>> verifyDoor(String deviceId) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/door/verify'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      body: jsonEncode({'deviceId': deviceId}),
     );
     return _handle(res);
   }
@@ -820,5 +852,15 @@ class ApiService {
     }
   }
 
+// --- Kapı röle süresini değiştir (yönetici) ---
+  static Future<Map<String, dynamic>> setDoorPulse(String doorId, num seconds) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/door/set-pulse'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      body: jsonEncode({'doorId': doorId, 'seconds': seconds}),
+    );
+    return _handle(res);
+  }
 
 }

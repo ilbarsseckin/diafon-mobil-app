@@ -4,10 +4,8 @@ import 'create_structure_screen.dart';
 import 'vehicles_screen.dart';
 
 /// Basit giriş ekranı: harita/tarama yok, sadece niyet seçimi.
-/// 1) Sakin Olarak Katıl  -> AddBuildingScreen (kendi adres/konum akışı var)
-/// 2) Yeni Ev / Bina Ekle -> CreateStructureScreen (kendi konum akışı var)
-/// 3) Araç QR Ekle        -> VehiclesScreen (araç kartı aktive/yönetim)
-/// (+ küçük seçenek: İşyeri Ekle)
+/// Üstte: Sakin Olarak Katıl + Araç QR
+/// Altta: 4 yer tipi (Villa / Apartman / Site / İşyeri) 2x2 grid
 class LocationActionScreen extends StatelessWidget {
   const LocationActionScreen({super.key});
 
@@ -16,6 +14,8 @@ class LocationActionScreen extends StatelessWidget {
   static const _blue = Color(0xFF2D7DD2);
   static const _orange = Color(0xFFE8830C);
   static const _teal = Color(0xFF2A9D8F);
+  static const _green = Color(0xFF2A9D8F);
+  static const _purple = Color(0xFF6C63C4);
 
   Future<void> _goJoin(BuildContext context) async {
     final result = await Navigator.push(
@@ -41,6 +41,7 @@ class LocationActionScreen extends StatelessWidget {
     if (result == true && context.mounted) Navigator.pop(context, true);
   }
 
+  // Üstteki geniş kartlar (Sakin / Araç)
   Widget _bigCard({
     required IconData icon,
     required Color color,
@@ -53,7 +54,7 @@ class LocationActionScreen extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
+        margin: const EdgeInsets.only(bottom: 14),
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -105,7 +106,6 @@ class LocationActionScreen extends StatelessWidget {
             const SizedBox(height: 12),
             Divider(color: Colors.grey.shade100, height: 1),
             const SizedBox(height: 10),
-            // Kullanıcı ne yapacağını önceden bilsin
             Wrap(
               spacing: 6,
               runSpacing: 6,
@@ -131,6 +131,59 @@ class LocationActionScreen extends StatelessWidget {
     );
   }
 
+  // Alttaki 2x2 grid kutuları (yer tipleri)
+  Widget _typeBox({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.grey.shade200),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 2)),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(height: 10),
+            Text(title,
+                style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: _navy)),
+            const SizedBox(height: 3),
+            Text(subtitle,
+                style: TextStyle(
+                    fontSize: 11.5, color: Colors.grey[600], height: 1.2)),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -150,7 +203,8 @@ class LocationActionScreen extends StatelessWidget {
                 style: TextStyle(
                     fontSize: 20, fontWeight: FontWeight.w700, color: _navy)),
             const SizedBox(height: 6),
-            Text('Durumunuza uygun seçeneği seçin, sizi adım adım yönlendirelim.',
+            Text(
+                'Durumunuza uygun seçeneği seçin, sizi adım adım yönlendirelim.',
                 style: TextStyle(fontSize: 13.5, color: Colors.grey[600])),
             const SizedBox(height: 22),
 
@@ -165,18 +219,7 @@ class LocationActionScreen extends StatelessWidget {
               onTap: () => _goJoin(context),
             ),
 
-            // 2 — YENİ EV / BİNA
-            _bigCard(
-              icon: Icons.add_home_work,
-              color: _red,
-              title: 'Yeni Ev / Bina Ekle',
-              subtitle:
-              'Eviniz veya binanız sistemde yok, yönetici olarak siz kuracaksınız.',
-              steps: const ['Konumu işaretle', 'Bina bilgilerini gir', 'Daireleri oluştur'],
-              onTap: () => _goCreate(context, 'residential'),
-            ),
-
-            // 3 — ARAÇ QR
+            // 2 — ARAÇ QR
             _bigCard(
               icon: Icons.directions_car,
               color: _teal,
@@ -187,17 +230,55 @@ class LocationActionScreen extends StatelessWidget {
               onTap: () => _goVehicles(context),
             ),
 
+            const SizedBox(height: 10),
+            const Text('Yeni bir yer mi kuruyorsunuz?',
+                style: TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.w700, color: _navy)),
             const SizedBox(height: 4),
-            // Üçüncül seçenek — küçük tutuldu
-            Center(
-              child: TextButton.icon(
-                onPressed: () => _goCreate(context, 'business'),
-                icon: const Icon(Icons.store, size: 18, color: _orange),
-                label: const Text('İşyeri mi ekleyeceksiniz?',
-                    style: TextStyle(
-                        color: _orange, fontWeight: FontWeight.w600)),
-              ),
+            Text('Kurmak istediğiniz yerin türünü seçin.',
+                style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+            const SizedBox(height: 14),
+
+            // 2x2 GRID — yer tipleri
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 1.35,
+              children: [
+                _typeBox(
+                  icon: Icons.house,
+                  color: _green,
+                  title: 'Villa / Ev',
+                  subtitle: 'Müstakil ev, tek hane',
+                  onTap: () => _goCreate(context, 'villa'),
+                ),
+                _typeBox(
+                  icon: Icons.apartment,
+                  color: _red,
+                  title: 'Apartman',
+                  subtitle: 'Tek bina, birden çok daire',
+                  onTap: () => _goCreate(context, 'apartment'),
+                ),
+                _typeBox(
+                  icon: Icons.location_city,
+                  color: _purple,
+                  title: 'Site',
+                  subtitle: 'Birden çok bloklu',
+                  onTap: () => _goCreate(context, 'site'),
+                ),
+                _typeBox(
+                  icon: Icons.store,
+                  color: _orange,
+                  title: 'İşyeri',
+                  subtitle: 'Dükkân, ofis, market',
+                  onTap: () => _goCreate(context, 'business'),
+                ),
+              ],
             ),
+            const SizedBox(height: 12),
           ],
         ),
       ),

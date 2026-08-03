@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:diafon_mobil_app/permissions_screen.dart';
+import 'package:diafon_mobil_app/shelly_setup_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'api_service.dart';
@@ -486,13 +487,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ListTile(
               leading: const Icon(Icons.door_front_door, color: Color(0xFFE63946)),
               title: const Text('Akıllı Kapılar'),
-              subtitle: const Text('Tuya uyumlu kapı ekle/yönet (yönetici)'),
+              subtitle: const Text('Kapılarınızı görün ve yönetin (yönetici)'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const DoorManagementScreen()),
                 );
+              },
+            ),
+          if (_isManager)
+            ListTile(
+              leading: const Icon(Icons.wifi_tethering, color: Color(0xFFE63946)),
+              title: const Text('Yeni Kapı Kur (Shelly)'),
+              subtitle: const Text('Cihazı kutudan çıkarın, kurulumu uygulama yapsın'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () async {
+                final eklendi = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ShellySetupScreen()),
+                );
+                if (eklendi == true && mounted) {
+                  _toast('Kapı kuruldu. Evlerim ekranından test edebilirsiniz.');
+                }
               },
             ),
           if (_isManager) ...[

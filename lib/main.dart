@@ -1139,9 +1139,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     try {
       final res = await ApiService.ringDoorbell(apartmentId: apartmentId);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(res['success'] == true ? '🔔 $name için zil çalındı' : (res['message']?.toString() ?? 'Zil çalınamadı'))),
-        );
+        if (res['code'] == 'SUBSCRIPTION_EXPIRED') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Şu anda bu binaya zil çalınamıyor. Lütfen bina yönetimiyle iletişime geçin.'),
+              backgroundColor: Colors.red.shade700,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(res['success'] == true ? '🔔 $name için zil çalındı' : (res['message']?.toString() ?? 'Zil çalınamadı'))),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
