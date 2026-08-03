@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'api_service.dart';
 import 'add_building_screen.dart';
 import 'building_overview_screen.dart';
+import 'camera_setup_screen.dart';
 import 'door_management_screen.dart';
 import 'location_action_screen.dart';
 import 'main.dart';
@@ -512,6 +513,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 }
               },
             ),
+          if (_isManager)
+            ListTile(
+              leading: const Icon(Icons.videocam, color: Color(0xFFE63946)),
+              title: const Text('Kapı Kamerası'),
+              subtitle: const Text('Kapı/giriş kamerası ekleyin (yönetici)'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _openCameraSetup(),
+            ),
           if (_isManager) ...[
             const Divider(),
             // Abonelik
@@ -564,6 +573,77 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 20),
         ],
+      ),
+    );
+  }
+
+  Future<void> _openCameraSetup() async {
+    List<dynamic> homes = [];
+    try {
+      homes = await ApiService.myHomes();
+    } catch (_) {}
+    if (!mounted) return;
+    // Sadece yonetici olunan (sahip) binalar
+    final yonetilen = homes.where((h) {
+      final id = (h['buildingId'] ?? h['id'] ?? '').toString();
+      return id.isNotEmpty;
+    }).toList();
+
+    if (yonetilen.isEmpty) {
+      _toast('Kamera eklenecek bina bulunamadı');
+      return;
+    }
+
+    Map<String, dynamic>? secili;
+    if (yonetilen.length == 1) {
+      secili = Map<String, dynamic>.from(yonetilen.first);
+    } else {
+      secili = await showModalBottomSheet<Map<String, dynamic>>(
+        context: context,
+        builder: (ctx) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('Hangi bina?',
+                    style:
+                    TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+              ...yonetilen.map((h) {
+                final m = Map<String, dynamic>.from(h);
+                final ad = (m['siteName'] ??
+                    m['buildingName'] ??
+                    'Bina')
+                    .toString();
+                return ListTile(
+                  leading: const Icon(Icons.apartment, color: Color(0xFFE63946)),
+                  title: Text(ad),
+                  onTap: () => Navigator.pop(ctx, m),
+                );
+              }),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (secili == null || !mounted) return;
+    final buildingId =
+    (secili['buildingId'] ?? secili['id'] ?? '').toString();
+    final buildingName =
+    (secili['siteName'] ?? secili['buildingName'] ?? '').toString();
+    if (buildingId.isEmpty) {
+      _toast('Bina bilgisi eksik');
+      return;
+    }
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CameraSetupScreen(
+          buildingId: buildingId,
+          buildingName: buildingName,
+        ),
       ),
     );
   }

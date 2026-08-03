@@ -862,5 +862,63 @@ class ApiService {
     );
     return _handle(res);
   }
+// ============================================================
+// KAMERA METODLARI
+// api_service.dart icindeki ApiService sinifina, herhangi bir
+// metodun yanina (ornek: openDoor'un altina) yapistirin.
+// ============================================================
 
+  // Binada aktif kamera var mi? { hasCamera: bool, streamId?: string }
+  static Future<Map<String, dynamic>> getBuildingCamera(String buildingId) async {
+    final token = await getToken();
+    final res = await http.get(
+      Uri.parse('$baseUrl/door/camera/$buildingId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final body = jsonDecode(utf8.decode(res.bodyBytes));
+    return body is Map<String, dynamic> ? body : {'hasCamera': false};
+  }
+
+  // Kamera WebRTC: offer'i backend proxy'ye gonderir, go2rtc answer'ini alir.
+  // Donen: { type: 'answer', sdp: '...' } veya { error: '...' }
+  static Future<Map<String, dynamic>?> cameraWebrtc({
+    required String buildingId,
+    required String offerType,
+    required String offerSdp,
+  }) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/door/camera/$buildingId/webrtc'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'type': offerType, 'sdp': offerSdp}),
+    );
+    final body = jsonDecode(utf8.decode(res.bodyBytes));
+    return body is Map<String, dynamic> ? body : null;
+  }
+
+  // Kamera tanimla/guncelle/kapat (kurulum ekrani icin)
+  // enabled=false veya rtspUrl=null => kamera kapatilir
+  static Future<Map<String, dynamic>> setBuildingCamera({
+    required String buildingId,
+    String? rtspUrl,
+    required bool enabled,
+  }) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/door/set-camera'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'buildingId': buildingId,
+        if (rtspUrl != null) 'rtspUrl': rtspUrl,
+        'enabled': enabled,
+      }),
+    );
+    return _handle(res);
+  }
 }
