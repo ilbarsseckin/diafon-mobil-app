@@ -19,12 +19,9 @@
       - name: Sertifika ve profil olustur
         script: |
           keychain initialize
-          app-store-connect fetch-signing-files "com.ilbarslab.smartdiafon" --type IOS_APP_STORE --create
+          app-store-connect fetch-signing-files "com.ilbarslab.smartdiafon" --type IOS_APP_STORE --create --verbose
           keychain add-certificates
-          xcode-project use-profiles
-      - name: Config hazirla
-        script: |
-          flutter build ios --config-only --release
+          xcode-project use-profiles --verbose
       - name: IPA archive et
         script: |
           xcode-project build-ipa --workspace "ios/Runner.xcworkspace" --scheme "Runner"
