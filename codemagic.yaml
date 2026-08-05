@@ -1,4 +1,4 @@
-workflows:
+﻿workflows:
   ios-testflight:
     name: iOS TestFlight
     max_build_duration: 60
@@ -13,32 +13,20 @@ workflows:
       - name: Flutter paketlerini kur
         script: |
           flutter pub get
-
-      - name: CocoaPods kur
-        script: |
-          find . -name "Podfile" -execdir pod install \;
-
       - name: Sertifika ve profil olustur
         script: |
           keychain initialize
-          app-store-connect fetch-signing-files "com.ilbarslab.smartdiafon" \
-            --type IOS_APP_STORE \
-            --create
+          app-store-connect fetch-signing-files "com.ilbarslab.smartdiafon" --type IOS_APP_STORE --create
           keychain add-certificates
           xcode-project use-profiles
-
-      - name: Debug icin imzalamayi derle
+      - name: CocoaPods kur
         script: |
-          flutter build ios --release --no-codesign
-
-      - name: IPA olustur (imzali)
+          find . -name "Podfile" -execdir pod install \;
+      - name: IPA olustur
         script: |
-          xcode-project build-ipa \
-            --workspace "ios/Runner.xcworkspace" \
-            --scheme "Runner"
+          flutter build ipa --release --export-options-plist=$HOME/export_options.plist
     artifacts:
       - build/ios/ipa/*.ipa
-      - /Users/builder/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
       - /tmp/xcodebuild_logs/*.log
     publishing:
       email:
