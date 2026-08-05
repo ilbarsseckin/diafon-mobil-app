@@ -7,7 +7,7 @@
 		<key>CFBundleDevelopmentRegion</key>
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleDisplayName</key>
-		<string>Diafon Mobil App</string>
+		<string>MobilDiafon</string>
 		<key>CFBundleExecutable</key>
 		<string>$(EXECUTABLE_NAME)</string>
 		<key>CFBundleIdentifier</key>
@@ -26,6 +26,45 @@
 		<string>$(FLUTTER_BUILD_NUMBER)</string>
 		<key>LSRequiresIPhoneOS</key>
 		<true/>
+
+		<!-- ================================================== -->
+		<!-- IZIN METINLERI (Apple bunlar olmadan reddeder)     -->
+		<!-- ================================================== -->
+		<key>NSCameraUsageDescription</key>
+		<string>Ziyaretçi ile görüntülü kapı görüşmesi yapabilmeniz için kamera erişimi gereklidir. Görüşmeler kayıt altına alınmaz.</string>
+
+		<key>NSMicrophoneUsageDescription</key>
+		<string>Kapı görüşmesi sırasında sesli iletişim kurabilmeniz için mikrofon erişimi gereklidir. Görüşmeler kayıt altına alınmaz.</string>
+
+		<key>NSLocationWhenInUseUsageDescription</key>
+		<string>Yakınınızdaki kayıtlı binayı bulmak ve ziyaretçi konumunu doğrulamak için konum bilginiz kullanılır. Konum yalnızca uygulamayı kullanırken alınır.</string>
+
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>Profil fotoğrafı seçebilmeniz için fotoğraf galerinize erişim gereklidir.</string>
+
+		<key>NSContactsUsageDescription</key>
+		<string>Bina sakinlerini davet edebilmeniz için rehberinize erişim gereklidir.</string>
+
+		<key>NSFaceIDUsageDescription</key>
+		<string>Uygulamaya güvenli giriş yapabilmeniz için Face ID kullanılır.</string>
+
+		<!-- ================================================== -->
+		<!-- ARKA PLAN MODLARI (VoIP cagri icin zorunlu)        -->
+		<!-- ================================================== -->
+		<key>UIBackgroundModes</key>
+		<array>
+			<string>voip</string>
+			<string>audio</string>
+			<string>remote-notification</string>
+			<string>fetch</string>
+		</array>
+
+		<!-- ================================================== -->
+		<!-- SIFRELEME BEYANI (submit sirasinda soru sorulmaz)  -->
+		<!-- ================================================== -->
+		<key>ITSAppUsesNonExemptEncryption</key>
+		<false/>
+
 		<key>UIApplicationSceneManifest</key>
 		<dict>
 			<key>UIApplicationSupportsMultipleScenes</key>

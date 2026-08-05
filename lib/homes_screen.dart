@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:diafon_mobil_app/subscription_screen.dart';
 import 'package:flutter/material.dart';
 import 'api_service.dart';
@@ -540,12 +542,12 @@ class _HomesScreenState extends State<HomesScreen> {
           Icon(icon, size: 14, color: fg),
           const SizedBox(width: 5),
           Text(text, style: TextStyle(color: fg, fontSize: 12, fontWeight: FontWeight.w600)),
-          if (tappable) Icon(Icons.chevron_right, size: 14, color: fg),
+          if (tappable && !Platform.isIOS) Icon(Icons.chevron_right, size: 14, color: fg),
         ],
       ),
     );
 
-    if (tappable) {
+    if (tappable && !Platform.isIOS) {
       return InkWell(
         onTap: () {
           Navigator.push(context, MaterialPageRoute(builder: (_) => const SubscriptionScreen()));

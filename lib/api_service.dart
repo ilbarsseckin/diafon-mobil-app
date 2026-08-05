@@ -921,4 +921,21 @@ class ApiService {
     );
     return _handle(res);
   }
+// --- iOS VoIP push token'ını backend'e kaydet ---
+  static Future<void> saveVoipToken(String voipToken) async {
+    final token = await getToken();
+    if (token == null) return;
+    try {
+      await http.post(
+        Uri.parse('$baseUrl/auth/voip-token'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'voipToken': voipToken}),
+      );
+    } catch (e) {
+      // sessizce geç
+    }
+  }
 }

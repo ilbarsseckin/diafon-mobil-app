@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:diafon_mobil_app/permissions_screen.dart';
 import 'package:diafon_mobil_app/shelly_setup_screen.dart';
 import 'package:flutter/material.dart';
@@ -513,7 +514,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 }
               },
             ),
-          if (_isManager)
+          if (_isManager && !Platform.isIOS)
             ListTile(
               leading: const Icon(Icons.videocam, color: Color(0xFFE63946)),
               title: const Text('Kapı Kamerası'),
@@ -521,7 +522,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               trailing: const Icon(Icons.chevron_right),
               onTap: () => _openCameraSetup(),
             ),
-          if (_isManager) ...[
+          if (_isManager && !Platform.isIOS) ...[
             const Divider(),
             // Abonelik
             const Padding(
