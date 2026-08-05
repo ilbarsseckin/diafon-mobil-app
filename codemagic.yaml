@@ -27,13 +27,19 @@ workflows:
           keychain add-certificates
           xcode-project use-profiles
 
-      - name: Build al
+      - name: Debug icin imzalamayi derle
         script: |
-          flutter build ipa --release
+          flutter build ios --release --no-codesign
+
+      - name: IPA olustur (imzali)
+        script: |
+          xcode-project build-ipa \
+            --workspace "ios/Runner.xcworkspace" \
+            --scheme "Runner"
     artifacts:
       - build/ios/ipa/*.ipa
+      - /Users/builder/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
       - /tmp/xcodebuild_logs/*.log
-      - flutter_drive.log
     publishing:
       email:
         recipients:
