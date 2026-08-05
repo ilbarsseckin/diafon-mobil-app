@@ -1,7 +1,7 @@
 ﻿workflows:
   ios-testflight:
     name: iOS TestFlight
-    max_build_duration: 60
+    max_build_duration: 120
     instance_type: mac_mini_m2
     integrations:
       app_store_connect: codemagic
@@ -16,15 +16,18 @@
       - name: CocoaPods kur
         script: |
           find . -name "Podfile" -execdir pod install \;
-      - name: Sertifika ve profil olustur
+      - name: SSH icin bekle
         script: |
-          keychain initialize
-          app-store-connect fetch-signing-files "com.ilbarslab.smartdiafon" --type IOS_APP_STORE --create --verbose
-          keychain add-certificates
-          xcode-project use-profiles --verbose
-      - name: IPA archive et
+          echo "==================================================="
+          echo "Xcode ac: open ios/Runner.xcworkspace"
+          echo "Runner target > Signing & Capabilities"
+          echo "Automatically manage signing = ON, Team sec"
+          echo "Sonra bu satiri silip build devam edecek"
+          echo "==================================================="
+          sleep 1800
+      - name: IPA olustur
         script: |
-          xcode-project build-ipa --workspace "ios/Runner.xcworkspace" --scheme "Runner"
+          flutter build ipa --release
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
