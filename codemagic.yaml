@@ -6,9 +6,6 @@ workflows:
     integrations:
       app_store_connect: codemagic
     environment:
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.ilbarslab.smartdiafon
       flutter: stable
       xcode: latest
       cocoapods: default
@@ -21,12 +18,12 @@ workflows:
         script: |
           find . -name "Podfile" -execdir pod install \;
 
-      - name: Imzalama dosyalarini getir/olustur
+      - name: Sertifika ve profil olustur
         script: |
+          keychain initialize
           app-store-connect fetch-signing-files "com.ilbarslab.smartdiafon" \
             --type IOS_APP_STORE \
             --create
-          keychain initialize
           keychain add-certificates
           xcode-project use-profiles
 
