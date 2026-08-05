@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>API_KEY</key>
+	<string>AIzaSyDSsbZVh1ljsj2cYljup3GJNDxTN6pIxSM</string>
+	<key>GCM_SENDER_ID</key>
+	<string>126069683679</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.ilbarslab.smartdiafon</string>
+	<key>PROJECT_ID</key>
+	<string>smartdiafon-e985f</string>
+	<key>STORAGE_BUCKET</key>
+	<string>smartdiafon-e985f.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:126069683679:ios:3ab7cf0c576e376d91006a</string>
+</dict>
+</plist>
