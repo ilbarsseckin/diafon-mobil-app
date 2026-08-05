@@ -16,15 +16,14 @@
       - name: CocoaPods kur
         script: |
           find . -name "Podfile" -execdir pod install \;
-      - name: SSH icin bekle
+      - name: Sertifika hazirla ve bekle
         script: |
-          echo "==================================================="
-          echo "Xcode ac: open ios/Runner.xcworkspace"
-          echo "Runner target > Signing & Capabilities"
-          echo "Automatically manage signing = ON, Team sec"
-          echo "Sonra bu satiri silip build devam edecek"
-          echo "==================================================="
-          sleep 1800
+          keychain initialize
+          app-store-connect fetch-signing-files "com.ilbarslab.smartdiafon" --type IOS_APP_STORE --create --verbose || true
+          keychain add-certificates || true
+          echo "==== SSH ILE BAGLAN, SORUNU INCELE ===="
+          echo "Komut: xcode-project use-profiles --verbose"
+          sleep 2400
       - name: IPA olustur
         script: |
           flutter build ipa --release
