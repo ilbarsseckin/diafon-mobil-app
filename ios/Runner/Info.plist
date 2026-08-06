@@ -27,9 +27,6 @@
 		<key>LSRequiresIPhoneOS</key>
 		<true/>
 
-		<!-- ================================================== -->
-		<!-- IZIN METINLERI (Apple bunlar olmadan reddeder)     -->
-		<!-- ================================================== -->
 		<key>NSCameraUsageDescription</key>
 		<string>Ziyaretçi ile görüntülü kapı görüşmesi yapabilmeniz için kamera erişimi gereklidir. Görüşmeler kayıt altına alınmaz.</string>
 
@@ -38,6 +35,12 @@
 
 		<key>NSLocationWhenInUseUsageDescription</key>
 		<string>Yakınınızdaki kayıtlı binayı bulmak ve ziyaretçi konumunu doğrulamak için konum bilginiz kullanılır. Konum yalnızca uygulamayı kullanırken alınır.</string>
+
+		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+		<string>Yakınınızdaki kayıtlı binayı bulmak ve ziyaretçi konumunu doğrulamak için konum bilginiz kullanılır.</string>
+
+		<key>NSLocationAlwaysUsageDescription</key>
+		<string>Yakınınızdaki kayıtlı binayı bulmak ve ziyaretçi konumunu doğrulamak için konum bilginiz kullanılır.</string>
 
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>Profil fotoğrafı seçebilmeniz için fotoğraf galerinize erişim gereklidir.</string>
@@ -48,9 +51,6 @@
 		<key>NSFaceIDUsageDescription</key>
 		<string>Uygulamaya güvenli giriş yapabilmeniz için Face ID kullanılır.</string>
 
-		<!-- ================================================== -->
-		<!-- ARKA PLAN MODLARI (VoIP cagri icin zorunlu)        -->
-		<!-- ================================================== -->
 		<key>UIBackgroundModes</key>
 		<array>
 			<string>voip</string>
@@ -59,9 +59,6 @@
 			<string>fetch</string>
 		</array>
 
-		<!-- ================================================== -->
-		<!-- SIFRELEME BEYANI (submit sirasinda soru sorulmaz)  -->
-		<!-- ================================================== -->
 		<key>ITSAppUsesNonExemptEncryption</key>
 		<false/>
 
