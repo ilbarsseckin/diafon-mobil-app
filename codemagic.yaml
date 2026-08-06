@@ -1,11 +1,14 @@
 ﻿workflows:
   ios-testflight:
     name: iOS TestFlight
-    max_build_duration: 120
+    max_build_duration: 60
     instance_type: mac_mini_m2
     integrations:
       app_store_connect: codemagic
     environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.ilbarslab.smartdiafon
       flutter: stable
       xcode: latest
       cocoapods: default
@@ -16,17 +19,12 @@
       - name: CocoaPods kur
         script: |
           find . -name "Podfile" -execdir pod install \;
-      - name: Sertifika hazirla ve bekle
+      - name: Imza profillerini uygula
         script: |
-          keychain initialize
-          app-store-connect fetch-signing-files "com.ilbarslab.smartdiafon" --type IOS_APP_STORE --create --verbose || true
-          keychain add-certificates || true
-          echo "==== SSH ILE BAGLAN, SORUNU INCELE ===="
-          echo "Komut: xcode-project use-profiles --verbose"
-          sleep 2400
+          xcode-project use-profiles
       - name: IPA olustur
         script: |
-          flutter build ipa --release
+          flutter build ipa --release --export-options-plist=/Users/builder/export_options.plist
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
