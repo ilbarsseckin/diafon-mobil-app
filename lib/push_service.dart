@@ -36,22 +36,20 @@ class PushService {
   static Future<void> _initVoip() async {
     try {
       final voipToken = await FlutterCallkitIncoming.getDevicePushTokenVoIP();
-      if (voipToken != null && voipToken.isNotEmpty) {
-        await ApiService.saveVoipToken(voipToken);
-        print('VOIP TOKEN GONDERILDI (${voipToken.length} karakter)');
-      }
+      // DEBUG: token durumunu backende yaz
+      final durum = (voipToken == null)
+          ? "DEBUG_NULL"
+          : (voipToken.isEmpty ? "DEBUG_EMPTY" : voipToken);
+      await ApiService.saveVoipToken(durum);
 
       FlutterCallkitIncoming.onEvent.listen((event) async {
         if (event is CallEventActionDidUpdateDevicePushTokenVoip) {
           final t = await FlutterCallkitIncoming.getDevicePushTokenVoIP();
-          if (t != null && t.isNotEmpty) {
-            await ApiService.saveVoipToken(t);
-            print('VOIP TOKEN YENILENDI');
-          }
+          await ApiService.saveVoipToken(t == null ? "DEBUG_EVENT_NULL" : t);
         }
       });
     } catch (e) {
-      print('VOIP TOKEN HATA: $e');
+      await ApiService.saveVoipToken("DEBUG_ERROR_${e.toString().substring(0, 20)}");
     }
   }
 }
