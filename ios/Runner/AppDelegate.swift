@@ -21,7 +21,6 @@ import flutter_callkit_incoming
 
   func pushRegistry(_ registry: PKPushRegistry, didUpdate credentials: PKPushCredentials, for type: PKPushType) {
     let deviceToken = credentials.token.map { String(format: "%02x", $0) }.joined()
-    print("VoIP token alindi: \(deviceToken)")
     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.setDevicePushTokenVoIP(deviceToken)
   }
 
@@ -30,13 +29,6 @@ import flutter_callkit_incoming
   }
 
   func pushRegistry(_ registry: PKPushRegistry, didReceiveIncomingPushWith payload: PKPushPayload, for type: PKPushType, completion: @escaping () -> Void) {
-    let dict = payload.dictionaryPayload
-    let id = (dict["callId"] as? String) ?? (dict["id"] as? String) ?? UUID().uuidString
-    let nameCaller = (dict["callerName"] as? String) ?? (dict["visitorName"] as? String) ?? "Ziyaretci"
-    let handle = (dict["handle"] as? String) ?? "MobilDiafon"
-    let data = flutter_callkit_incoming.Data(id: id, nameCaller: nameCaller, handle: handle, type: 1)
-    data.extra = dict as NSDictionary
-    SwiftFlutterCallkitIncomingPlugin.sharedInstance?.showCallkitIncoming(data, fromPushKit: true)
     completion()
   }
 }
