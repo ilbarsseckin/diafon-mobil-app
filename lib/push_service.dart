@@ -1,4 +1,5 @@
 ﻿import 'dart:io' show Platform;
+import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_callkit_incoming/entities/call_event.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
@@ -25,32 +26,28 @@ class PushService {
   }
   static Future<void> _initVoip() async {
     try {
-      final voipToken = await FlutterCallkitIncoming.getDevicePushTokenVoIP();
-      String durum;
-      if (voipToken == null) {
-        durum = 'DBG_NULL';
-      } else if (voipToken.isEmpty) {
-        durum = 'DBG_EMPTY';
-      } else {
-        durum = voipToken;
-      }
-      await ApiService.saveVoipToken(durum);
+      // Event listener: token hazir oldugunda tetiklenir
       FlutterCallkitIncoming.onEvent.listen((event) async {
         if (event is CallEventActionDidUpdateDevicePushTokenVoip) {
           final t = await FlutterCallkitIncoming.getDevicePushTokenVoIP();
-          String d2;
-          if (t == null) {
-            d2 = 'DBG_EVT_NULL';
-          } else if (t.isEmpty) {
-            d2 = 'DBG_EVT_EMPTY';
-          } else {
-            d2 = t;
+          if (t != null && t.isNotEmpty) {
+            await ApiService.saveVoipToken(t);
+            print('VOIP TOKEN (event): gonderildi');
           }
-          await ApiService.saveVoipToken(d2);
         }
       });
+      // Gecikmeli tekrar deneme: token asenkron gelir, birkac kez dene
+      for (int i = 0; i < 10; i++) {
+        await Future.delayed(const Duration(seconds: 2));
+        final t = await FlutterCallkitIncoming.getDevicePushTokenVoIP();
+        if (t != null && t.isNotEmpty) {
+          await ApiService.saveVoipToken(t);
+          print('VOIP TOKEN (retry ): gonderildi');
+          return;
+        }
+      }
     } catch (e) {
-      await ApiService.saveVoipToken('DBG_ERR');
+      print('VOIP HATA: ' + e.toString());
     }
   }
 }
