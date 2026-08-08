@@ -32,37 +32,29 @@ import flutter_callkit_incoming
     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.setDevicePushTokenVoIP("")
   }
 
-  // VoIP push geldiginde CallKit gelen cagri ekranini goster
   func pushRegistry(_ registry: PKPushRegistry, didReceiveIncomingPushWith payload: PKPushPayload, for type: PKPushType, completion: @escaping () -> Void) {
     let dict = payload.dictionaryPayload
-    let tip = (dict["type"] as? String) ?? ""
 
-    // Iptal push'u ise cagriyi kapat
-    if tip == "call_cancelled" {
+    if (dict["type"] as? String) == "call_cancelled" {
       SwiftFlutterCallkitIncomingPlugin.sharedInstance?.endAllCalls()
-      completion()
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { completion() }
       return
     }
 
-    let serverCallId = (dict["callId"] as? String) ?? ""
+    let serverCallId = (dict["callId"] as? String) ?? UUID().uuidString
     let callerName = (dict["callerName"] as? String) ?? "Ziyaretci"
-    // CallKit icin gecerli UUID uret; sunucu callId'sini extra'da sakla
-    let callKitId = UUID().uuidString
 
-    let data = flutter_callkit_incoming.Data(
-      id: callKitId,
-      nameCaller: callerName,
-      handle: "MobilDiafon",
-      type: 1
-    )
-    data.extra = [
-      "callId": serverCallId,
-      "callKitId": callKitId,
-      "callerUserId": (dict["callerUserId"] as? String) ?? "",
-      "buildingId": (dict["buildingId"] as? String) ?? ""
-    ] as NSDictionary
+    var info = [String: Any?]()
+    info["id"] = UUID().uuidString
+    info["nameCaller"] = callerName
+    info["handle"] = "MobilDiafon"
+    info["type"] = 1
+    info["extra"] = ["callId": serverCallId]
 
+    let data = flutter_callkit_incoming.Data(args: info)
     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.showCallkitIncoming(data, fromPushKit: true)
-    completion()
+
+    // Cokme onlemek icin gecikmeli completion (dokuman onerisi)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { completion() }
   }
 }
