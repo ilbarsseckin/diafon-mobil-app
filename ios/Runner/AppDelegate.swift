@@ -21,22 +21,10 @@ import flutter_callkit_incoming
 
   func pushRegistry(_ registry: PKPushRegistry, didUpdate credentials: PKPushCredentials, for type: PKPushType) {
     let deviceToken = credentials.token.map { String(format: "%02x", $0) }.joined()
+    print("VoIP token: \(deviceToken)")
     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.setDevicePushTokenVoIP(deviceToken)
-    UserDefaults.standard.set(deviceToken, forKey: "voip_device_token")
-    // DEBUG: phone hangi anahtarda? Ikisini de dene
-    let phone1 = UserDefaults.standard.string(forKey: "flutter.user_phone") ?? "YOK1"
-    let phone2 = UserDefaults.standard.string(forKey: "user_phone") ?? "YOK2"
-    sendRegister(phone: phone1.hasPrefix("YOK") ? phone2 : phone1, token: deviceToken, dbg: "p1=\(phone1) p2=\(phone2)")
-  }
-
-  func sendRegister(phone: String, token: String, dbg: String) {
-    guard let url = URL(string: "https://mobildiafon.com/api/auth/voip-register") else { return }
-    var request = URLRequest(url: url)
-    request.httpMethod = "POST"
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    let body: [String: String] = ["phone": phone, "voipToken": token, "dbg": dbg]
-    request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-    URLSession.shared.dataTask(with: request).resume()
+    // Flutter shared_preferences ile okuyabilsin diye flutter. prefix ile yaz
+    UserDefaults.standard.set(deviceToken, forKey: "flutter.voip_device_token")
   }
 
   func pushRegistry(_ registry: PKPushRegistry, didInvalidatePushTokenFor type: PKPushType) {
