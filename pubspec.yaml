@@ -32,7 +32,6 @@ dependencies:
   webview_flutter: ^4.14.0
   share_plus: ^13.2.0
   screenshot: ^3.0.0
-  path_provider: ^2.1.6
   connectivity_plus: ^7.2.0
   geocoding: ^4.0.0
 dev_dependencies:
