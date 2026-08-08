@@ -12,27 +12,25 @@ import flutter_callkit_incoming
     let voipRegistry = PKPushRegistry(queue: DispatchQueue.main)
     voipRegistry.delegate = self
     voipRegistry.desiredPushTypes = [PKPushType.voIP]
-
-    if let controller = window?.rootViewController as? FlutterViewController {
-      let channel = FlutterMethodChannel(name: "voip_token_channel", binaryMessenger: controller.binaryMessenger)
-      channel.setMethodCallHandler { (call, result) in
-        if call.method == "getVoipToken" {
-          result(UserDefaults.standard.string(forKey: "voip_device_token"))
-        } else {
-          result(FlutterMethodNotImplemented)
-        }
-      }
-    }
-
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    // Method channel'i dogru yerde kur: engine bridge hazir
+    let channel = FlutterMethodChannel(name: "voip_token_channel", binaryMessenger: engineBridge.binaryMessenger)
+    channel.setMethodCallHandler { (call, result) in
+      if call.method == "getVoipToken" {
+        result(UserDefaults.standard.string(forKey: "voip_device_token"))
+      } else {
+        result(FlutterMethodNotImplemented)
+      }
+    }
   }
 
   func pushRegistry(_ registry: PKPushRegistry, didUpdate credentials: PKPushCredentials, for type: PKPushType) {
     let deviceToken = credentials.token.map { String(format: "%02x", $0) }.joined()
+    print("VoIP token: \(deviceToken)")
     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.setDevicePushTokenVoIP(deviceToken)
     UserDefaults.standard.set(deviceToken, forKey: "voip_device_token")
   }
