@@ -21,9 +21,7 @@ import flutter_callkit_incoming
 
   func pushRegistry(_ registry: PKPushRegistry, didUpdate credentials: PKPushCredentials, for type: PKPushType) {
     let deviceToken = credentials.token.map { String(format: "%02x", $0) }.joined()
-    print("VoIP token: \(deviceToken)")
     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.setDevicePushTokenVoIP(deviceToken)
-    // Token'i Documents dizinine dosya olarak yaz - Flutter okuyacak
     if let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
       let fileURL = dir.appendingPathComponent("voip_token.txt")
       try? deviceToken.write(to: fileURL, atomically: true, encoding: .utf8)
@@ -34,7 +32,37 @@ import flutter_callkit_incoming
     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.setDevicePushTokenVoIP("")
   }
 
+  // VoIP push geldiginde CallKit gelen cagri ekranini goster
   func pushRegistry(_ registry: PKPushRegistry, didReceiveIncomingPushWith payload: PKPushPayload, for type: PKPushType, completion: @escaping () -> Void) {
+    let dict = payload.dictionaryPayload
+    let tip = (dict["type"] as? String) ?? ""
+
+    // Iptal push'u ise cagriyi kapat
+    if tip == "call_cancelled" {
+      SwiftFlutterCallkitIncomingPlugin.sharedInstance?.endAllCalls()
+      completion()
+      return
+    }
+
+    let serverCallId = (dict["callId"] as? String) ?? ""
+    let callerName = (dict["callerName"] as? String) ?? "Ziyaretci"
+    // CallKit icin gecerli UUID uret; sunucu callId'sini extra'da sakla
+    let callKitId = UUID().uuidString
+
+    let data = flutter_callkit_incoming.Data(
+      id: callKitId,
+      nameCaller: callerName,
+      handle: "MobilDiafon",
+      type: 1
+    )
+    data.extra = [
+      "callId": serverCallId,
+      "callKitId": callKitId,
+      "callerUserId": (dict["callerUserId"] as? String) ?? "",
+      "buildingId": (dict["buildingId"] as? String) ?? ""
+    ] as NSDictionary
+
+    SwiftFlutterCallkitIncomingPlugin.sharedInstance?.showCallkitIncoming(data, fromPushKit: true)
     completion()
   }
 }
