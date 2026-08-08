@@ -17,17 +17,6 @@ import flutter_callkit_incoming
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
-    // Registrar uzerinden messenger al
-    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "VoipTokenChannel") {
-      let channel = FlutterMethodChannel(name: "voip_token_channel", binaryMessenger: registrar.messenger())
-      channel.setMethodCallHandler { (call, result) in
-        if call.method == "getVoipToken" {
-          result(UserDefaults.standard.string(forKey: "voip_device_token"))
-        } else {
-          result(FlutterMethodNotImplemented)
-        }
-      }
-    }
   }
 
   func pushRegistry(_ registry: PKPushRegistry, didUpdate credentials: PKPushCredentials, for type: PKPushType) {
@@ -35,6 +24,22 @@ import flutter_callkit_incoming
     print("VoIP token: \(deviceToken)")
     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.setDevicePushTokenVoIP(deviceToken)
     UserDefaults.standard.set(deviceToken, forKey: "voip_device_token")
+    registerVoipToken(deviceToken)
+  }
+
+  func registerVoipToken(_ token: String) {
+    // shared_preferences iOS'ta "flutter." prefix ile yazar
+    let phone = UserDefaults.standard.string(forKey: "flutter.user_phone") ?? ""
+    guard !phone.isEmpty else { print("Phone yok"); return }
+    guard let url = URL(string: "https://mobildiafon.com/api/auth/voip-register") else { return }
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    let body = ["phone": phone, "voipToken": token]
+    request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+    URLSession.shared.dataTask(with: request) { _, _, _ in
+      print("VoIP token gonderildi: \(phone)")
+    }.resume()
   }
 
   func pushRegistry(_ registry: PKPushRegistry, didInvalidatePushTokenFor type: PKPushType) {
