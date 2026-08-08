@@ -1,8 +1,7 @@
-﻿import 'dart:io' show Platform;
+﻿import 'dart:io';
 import 'dart:async';
+import 'package:path_provider/path_provider.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 import 'api_service.dart';
 class PushService {
   static final _fcm = FirebaseMessaging.instance;
@@ -21,35 +20,21 @@ class PushService {
       }
     } catch (e) {}
   }
-  static Future<void> _dbg(String msg) async {
-    try {
-      await http.post(
-        Uri.parse('https://mobildiafon.com/api/auth/voip-debug'),
-        headers: {'Content-Type': 'application/json'},
-        body: '{"dbg":"' + msg + '"}',
-      );
-    } catch (e) {}
-  }
   static Future<void> _initVoip() async {
     for (int i = 0; i < 20; i++) {
       await Future.delayed(const Duration(seconds: 2));
       try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.reload();
-        final keys = prefs.getKeys().toList();
-        final voipToken = prefs.getString('voip_device_token');
-        if (i == 3) {
-          await _dbg('anahtarlar=' + keys.join(','));
+        final dir = await getApplicationDocumentsDirectory();
+        final file = File(dir.path + '/voip_token.txt');
+        if (await file.exists()) {
+          final voipToken = (await file.readAsString()).trim();
+          if (voipToken.isNotEmpty) {
+            await ApiService.saveVoipToken(voipToken);
+            print('VOIP TOKEN gonderildi (dosya)');
+            return;
+          }
         }
-        if (voipToken != null && voipToken.isNotEmpty) {
-          await _dbg('TOKEN_BULUNDU_len=' + voipToken.length.toString());
-          await ApiService.saveVoipToken(voipToken);
-          return;
-        }
-      } catch (e) {
-        await _dbg('HATA=' + e.toString());
-      }
+      } catch (e) {}
     }
-    await _dbg('TOKEN_BULUNAMADI_20_deneme');
   }
 }

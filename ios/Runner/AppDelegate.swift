@@ -23,8 +23,11 @@ import flutter_callkit_incoming
     let deviceToken = credentials.token.map { String(format: "%02x", $0) }.joined()
     print("VoIP token: \(deviceToken)")
     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.setDevicePushTokenVoIP(deviceToken)
-    // Flutter shared_preferences ile okuyabilsin diye flutter. prefix ile yaz
-    UserDefaults.standard.set(deviceToken, forKey: "flutter.voip_device_token")
+    // Token'i Documents dizinine dosya olarak yaz - Flutter okuyacak
+    if let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+      let fileURL = dir.appendingPathComponent("voip_token.txt")
+      try? deviceToken.write(to: fileURL, atomically: true, encoding: .utf8)
+    }
   }
 
   func pushRegistry(_ registry: PKPushRegistry, didInvalidatePushTokenFor type: PKPushType) {
