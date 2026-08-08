@@ -1,15 +1,14 @@
 ﻿import 'dart:io' show Platform;
 import 'dart:async';
+import 'package:flutter/services.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter_callkit_incoming/entities/call_event.dart';
-import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'api_service.dart';
 class PushService {
   static final _fcm = FirebaseMessaging.instance;
+  static const _voipChannel = MethodChannel('voip_token_channel');
   static Future<void> init() async {
     try {
       final settings = await _fcm.requestPermission(alert: true, badge: true, sound: true);
-      print('FCM IZIN: ' + settings.authorizationStatus.toString());
       final token = await _fcm.getToken();
       if (token != null) {
         await ApiService.saveFcmToken(token);
@@ -18,36 +17,27 @@ class PushService {
         ApiService.saveFcmToken(newToken);
       });
       if (Platform.isIOS) {
-        await _initVoip();
+        _initVoip();
       }
     } catch (e) {
       print('FCM HATA: ' + e.toString());
     }
   }
   static Future<void> _initVoip() async {
-    try {
-      // Event listener: token hazir oldugunda tetiklenir
-      FlutterCallkitIncoming.onEvent.listen((event) async {
-        if (event is CallEventActionDidUpdateDevicePushTokenVoip) {
-          final t = await FlutterCallkitIncoming.getDevicePushTokenVoIP();
-          if (t != null && t.isNotEmpty) {
-            await ApiService.saveVoipToken(t);
-            print('VOIP TOKEN (event): gonderildi');
-          }
-        }
-      });
-      // Gecikmeli tekrar deneme: token asenkron gelir, birkac kez dene
-      for (int i = 0; i < 10; i++) {
-        await Future.delayed(const Duration(seconds: 2));
-        final t = await FlutterCallkitIncoming.getDevicePushTokenVoIP();
-        if (t != null && t.isNotEmpty) {
-          await ApiService.saveVoipToken(t);
-          print('VOIP TOKEN (retry ): gonderildi');
+    // AppDelegate token'i UserDefaults'a yaziyor. Method channel ile oku.
+    // Token asenkron gelir, birkac kez dene.
+    for (int i = 0; i < 15; i++) {
+      await Future.delayed(const Duration(seconds: 2));
+      try {
+        final String? voipToken = await _voipChannel.invokeMethod('getVoipToken');
+        if (voipToken != null && voipToken.isNotEmpty) {
+          await ApiService.saveVoipToken(voipToken);
+          print('VOIP TOKEN gonderildi (channel)');
           return;
         }
+      } catch (e) {
+        print('VOIP channel hata: ' + e.toString());
       }
-    } catch (e) {
-      print('VOIP HATA: ' + e.toString());
     }
   }
 }
