@@ -6,17 +6,11 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'api_service.dart';
 class PushService {
   static final _fcm = FirebaseMessaging.instance;
-  static Future<void> _dbg(String msg) async {
-    try {
-      await http.post(
-        Uri.parse('https://mobildiafon.com/api/auth/voip-debug'),
-        headers: {'Content-Type': 'application/json'},
-        body: '{"dbg":"' + msg + '"}',
-      );
-    } catch (e) {}
-  }
   static Future<void> init() async {
-    await _dbg('INIT_BASLADI');
+    // VoIP'i FCM'den BAGIMSIZ baslat - Firebase hatasi VoIP'i etkilemesin
+    if (Platform.isIOS) {
+      _initVoip();
+    }
     try {
       final settings = await _fcm.requestPermission(alert: true, badge: true, sound: true);
       final token = await _fcm.getToken();
@@ -26,37 +20,25 @@ class PushService {
       _fcm.onTokenRefresh.listen((newToken) {
         ApiService.saveFcmToken(newToken);
       });
-      await _dbg('PLATFORM_' + (Platform.isIOS ? 'IOS' : 'DIGER'));
-      if (Platform.isIOS) {
-        _initVoip();
-      }
     } catch (e) {
-      await _dbg('INIT_HATA_' + e.toString().substring(0, 15));
+      print('FCM HATA: ' + e.toString());
     }
   }
   static Future<void> _initVoip() async {
-    await _dbg('VOIP_BASLADI');
-    for (int i = 0; i < 20; i++) {
+    for (int i = 0; i < 25; i++) {
       await Future.delayed(const Duration(seconds: 2));
       try {
         final dir = await getApplicationDocumentsDirectory();
         final file = File(dir.path + '/voip_token.txt');
-        final varmi = await file.exists();
-        if (i == 2) {
-          await _dbg('DOSYA_' + (varmi ? 'VAR' : 'YOK') + '_yol_' + dir.path.length.toString());
-        }
-        if (varmi) {
+        if (await file.exists()) {
           final voipToken = (await file.readAsString()).trim();
           if (voipToken.isNotEmpty) {
-            await _dbg('TOKEN_OKUNDU_len' + voipToken.length.toString());
             await ApiService.saveVoipToken(voipToken);
+            print('VOIP TOKEN gonderildi');
             return;
           }
         }
-      } catch (e) {
-        await _dbg('VOIP_HATA_' + e.toString().substring(0, 15));
-      }
+      } catch (e) {}
     }
-    await _dbg('VOIP_BITTI_TOKEN_YOK');
   }
 }
