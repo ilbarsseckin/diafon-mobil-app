@@ -17,13 +17,15 @@ import flutter_callkit_incoming
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
-    // Method channel'i dogru yerde kur: engine bridge hazir
-    let channel = FlutterMethodChannel(name: "voip_token_channel", binaryMessenger: engineBridge.binaryMessenger)
-    channel.setMethodCallHandler { (call, result) in
-      if call.method == "getVoipToken" {
-        result(UserDefaults.standard.string(forKey: "voip_device_token"))
-      } else {
-        result(FlutterMethodNotImplemented)
+    // Registrar uzerinden messenger al
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "VoipTokenChannel") {
+      let channel = FlutterMethodChannel(name: "voip_token_channel", binaryMessenger: registrar.messenger())
+      channel.setMethodCallHandler { (call, result) in
+        if call.method == "getVoipToken" {
+          result(UserDefaults.standard.string(forKey: "voip_device_token"))
+        } else {
+          result(FlutterMethodNotImplemented)
+        }
       }
     }
   }
