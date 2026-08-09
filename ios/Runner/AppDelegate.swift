@@ -33,6 +33,14 @@ import flutter_callkit_incoming
   }
 
   func pushRegistry(_ registry: PKPushRegistry, didReceiveIncomingPushWith payload: PKPushPayload, for type: PKPushType, completion: @escaping () -> Void) {
+    // DEBUG: push geldi mi backend'e bildir
+    if let url = URL(string: "https://mobildiafon.com/api/auth/voip-debug") {
+      var req = URLRequest(url: url)
+      req.httpMethod = "POST"
+      req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+      req.httpBody = "{\"dbg\":\"PUSH_GELDI\"}".data(using: .utf8)
+      URLSession.shared.dataTask(with: req).resume()
+    }
     let dict = payload.dictionaryPayload
 
     if (dict["type"] as? String) == "call_cancelled" {
