@@ -780,6 +780,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         final callId = (extra['callId'] ?? '').toString();
         final callerUserId = (extra['callerUserId'] ?? '').toString();
         final callerName = (extra['callerName'] ?? 'Bilinmeyen').toString();
+        final callKitId = (extra['callKitId'] ?? callId).toString();
         final buildingId = (extra['buildingId'] ?? '').toString();
         print('AKTIF CAGRI: callId=$callId callerUserId=$callerUserId');
 
