@@ -784,7 +784,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         print('AKTIF CAGRI: callId=$callId callerUserId=$callerUserId');
 
         if (callId.isNotEmpty && callerUserId.isNotEmpty && mounted) {
-          await FlutterCallkitIncoming.endCall(callId);
+          await FlutterCallkitIncoming.endCall(callKitId);
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -811,11 +811,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (event == null) return;
       if (event is CallEventActionCallAccept) {
         final extra = event.callKitParams.extra ?? {};
-        final callId = (extra['callId'] ?? event.callKitParams.id ?? '').toString();
+        final callId = (extra['callId'] ?? '').toString();
+        final callKitId = (extra['callKitId'] ?? event.callKitParams.id ?? '').toString();
         final callerUserId = (extra['callerUserId'] ?? '').toString();
         final callerName = (extra['callerName'] ?? 'Bilinmeyen').toString();
         final buildingId = (extra['buildingId'] ?? '').toString();
-        FlutterCallkitIncoming.endCall(callId);
+        FlutterCallkitIncoming.endCall(callKitId);
         if (mounted) {
           Navigator.push(
             context,
