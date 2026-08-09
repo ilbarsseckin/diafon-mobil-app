@@ -1,4 +1,4 @@
-﻿import Flutter
+import Flutter
 import UIKit
 import PushKit
 import flutter_callkit_incoming
@@ -55,6 +55,8 @@ import flutter_callkit_incoming
     ] as NSDictionary
 
     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.showCallkitIncoming(data, fromPushKit: true)
-    completion()
+    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+      completion()
+    }
   }
 }
