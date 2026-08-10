@@ -1,4 +1,4 @@
-﻿import Flutter
+import Flutter
 import UIKit
 import PushKit
 import CallKit
@@ -6,7 +6,7 @@ import AVFoundation
 import flutter_callkit_incoming
 
 @main
-@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate, PKPushRegistryDelegate, CallkitIncomingAppDelegate {
+@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate, PKPushRegistryDelegate {
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -60,25 +60,4 @@ import flutter_callkit_incoming
     completion()
   }
 
-  // MARK: - CallkitIncomingAppDelegate
-  func onAccept(_ call: Call, _ action: CXAnswerCallAction) {
-    action.fulfill()
-  }
-
-  func onDecline(_ call: Call, _ action: CXEndCallAction) {
-    action.fulfill()
-  }
-
-  func onEnd(_ call: Call, _ action: CXEndCallAction) {
-    action.fulfill()
-  }
-
-  func onTimeOut(_ call: Call) {
-  }
-
-  func didActivateAudioSession(_ audioSession: AVAudioSession) {
-  }
-
-  func didDeactivateAudioSession(_ audioSession: AVAudioSession) {
-  }
 }
