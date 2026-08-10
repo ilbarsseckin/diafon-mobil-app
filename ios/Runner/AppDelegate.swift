@@ -1,4 +1,4 @@
-import Flutter
+﻿import Flutter
 import UIKit
 import PushKit
 import CallKit
@@ -57,19 +57,15 @@ import flutter_callkit_incoming
     ] as NSDictionary
 
     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.showCallkitIncoming(data, fromPushKit: true)
-    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-      completion()
-    }
+    completion()
   }
 
-  // CallKit'ten kabul edilince (uygulama oluyken de calisir)
+  // MARK: - CallkitIncomingAppDelegate
   func onAccept(_ call: Call, _ action: CXAnswerCallAction) {
-    print("CallKit ACCEPT")
     action.fulfill()
   }
 
   func onDecline(_ call: Call, _ action: CXEndCallAction) {
-    print("CallKit DECLINE")
     action.fulfill()
   }
 
