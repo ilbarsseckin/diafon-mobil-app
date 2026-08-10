@@ -5,6 +5,7 @@ import 'package:diafon_mobil_app/webview_screen.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:http/http.dart' as http;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
@@ -62,7 +63,10 @@ void main() async {
   try {
     await Firebase.initializeApp();
     FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundHandler);
-  } catch (e) {}
+    try { await http.post(Uri.parse('https://mobildiafon.com/api/auth/voip-debug'), headers: {'Content-Type': 'application/json'}, body: '{"dbg":"FIREBASE_OK"}'); } catch (_) {}
+  } catch (e) {
+    try { await http.post(Uri.parse('https://mobildiafon.com/api/auth/voip-debug'), headers: {'Content-Type': 'application/json'}, body: '{"dbg":"FIREBASE_HATA"}'); } catch (_) {}
+  }
   try {
     await initBackgroundService();
   } catch (e) {
