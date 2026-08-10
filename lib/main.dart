@@ -696,7 +696,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _checkDeletionStatus();
     _checkSubscription();
     _checkDnd();
-    Future.delayed(const Duration(milliseconds: 800), _checkActiveCall);
+    // _checkActiveCall devre disi: calan cagriyi otomatik kapatip cokmeye sebep oluyordu
     if (widget.autoAddBuilding) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _openAddBuilding());
     }
