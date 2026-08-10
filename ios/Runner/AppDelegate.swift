@@ -1,10 +1,12 @@
 import Flutter
 import UIKit
 import PushKit
+import CallKit
+import AVFoundation
 import flutter_callkit_incoming
 
 @main
-@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate, PKPushRegistryDelegate {
+@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate, PKPushRegistryDelegate, CallkitIncomingAppDelegate {
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -58,5 +60,29 @@ import flutter_callkit_incoming
     DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
       completion()
     }
+  }
+
+  // CallKit'ten kabul edilince (uygulama oluyken de calisir)
+  func onAccept(_ call: Call, _ action: CXAnswerCallAction) {
+    print("CallKit ACCEPT")
+    action.fulfill()
+  }
+
+  func onDecline(_ call: Call, _ action: CXEndCallAction) {
+    print("CallKit DECLINE")
+    action.fulfill()
+  }
+
+  func onEnd(_ call: Call, _ action: CXEndCallAction) {
+    action.fulfill()
+  }
+
+  func onTimeOut(_ call: Call) {
+  }
+
+  func didActivateAudioSession(_ audioSession: AVAudioSession) {
+  }
+
+  func didDeactivateAudioSession(_ audioSession: AVAudioSession) {
   }
 }
