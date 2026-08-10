@@ -1,4 +1,4 @@
-import Flutter
+﻿import Flutter
 import UIKit
 import PushKit
 import CallKit
@@ -6,7 +6,7 @@ import AVFoundation
 import flutter_callkit_incoming
 
 @main
-@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate, PKPushRegistryDelegate {
+@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate, PKPushRegistryDelegate, CallkitIncomingAppDelegate {
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -36,17 +36,14 @@ import flutter_callkit_incoming
 
   func pushRegistry(_ registry: PKPushRegistry, didReceiveIncomingPushWith payload: PKPushPayload, for type: PKPushType, completion: @escaping () -> Void) {
     let dict = payload.dictionaryPayload
-
     if (dict["type"] as? String) == "call_cancelled" {
       SwiftFlutterCallkitIncomingPlugin.sharedInstance?.endAllCalls()
       completion()
       return
     }
-
     let serverCallId = (dict["callId"] as? String) ?? ""
     let callerName = (dict["callerName"] as? String) ?? "Ziyaretci"
     let callKitId = UUID().uuidString
-
     let data = flutter_callkit_incoming.Data(id: callKitId, nameCaller: callerName, handle: "MobilDiafon", type: 1)
     data.extra = [
       "callId": serverCallId,
@@ -55,9 +52,28 @@ import flutter_callkit_incoming
       "callerUserId": (dict["callerUserId"] as? String) ?? "",
       "buildingId": (dict["buildingId"] as? String) ?? ""
     ] as NSDictionary
-
     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.showCallkitIncoming(data, fromPushKit: true)
     completion()
   }
 
+  func onAccept(_ call: flutter_callkit_incoming.Call, _ action: CXAnswerCallAction) {
+    action.fulfill()
+  }
+
+  func onDecline(_ call: flutter_callkit_incoming.Call, _ action: CXEndCallAction) {
+    action.fulfill()
+  }
+
+  func onEnd(_ call: flutter_callkit_incoming.Call, _ action: CXEndCallAction) {
+    action.fulfill()
+  }
+
+  func onTimeOut(_ call: flutter_callkit_incoming.Call) {
+  }
+
+  func didActivateAudioSession(_ audioSession: AVAudioSession) {
+  }
+
+  func didDeactivateAudioSession(_ audioSession: AVAudioSession) {
+  }
 }
