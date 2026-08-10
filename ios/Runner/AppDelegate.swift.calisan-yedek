@@ -1,8 +1,7 @@
-import Flutter
+﻿import Flutter
 import UIKit
 import PushKit
 import CallKit
-import UserNotifications
 import AVFoundation
 import flutter_callkit_incoming
 
@@ -37,16 +36,6 @@ import flutter_callkit_incoming
 
   func pushRegistry(_ registry: PKPushRegistry, didReceiveIncomingPushWith payload: PKPushPayload, for type: PKPushType, completion: @escaping () -> Void) {
     let dict = payload.dictionaryPayload
-    if (dict["type"] as? String) == "doorbell" {
-      let content = UNMutableNotificationContent()
-      content.title = "Kapi Zili"
-      content.body = ((dict["visitorName"] as? String) ?? "Ziyaretci") + " zil caldi"
-      content.sound = UNNotificationSound.default
-      let req = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-      UNUserNotificationCenter.current().add(req, withCompletionHandler: nil)
-      completion()
-      return
-    }
     if (dict["type"] as? String) == "call_cancelled" {
       SwiftFlutterCallkitIncomingPlugin.sharedInstance?.endAllCalls()
       completion()
