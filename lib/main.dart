@@ -63,10 +63,7 @@ void main() async {
   try {
     await Firebase.initializeApp();
     FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundHandler);
-    try { await http.post(Uri.parse('https://mobildiafon.com/api/auth/voip-debug'), headers: {'Content-Type': 'application/json'}, body: '{"dbg":"FIREBASE_OK"}'); } catch (_) {}
-  } catch (e) {
-    try { await http.post(Uri.parse('https://mobildiafon.com/api/auth/voip-debug'), headers: {'Content-Type': 'application/json'}, body: '{"dbg":"FIREBASE_HATA"}'); } catch (_) {}
-  }
+  } catch (e) {}
   try {
     await initBackgroundService();
   } catch (e) {
