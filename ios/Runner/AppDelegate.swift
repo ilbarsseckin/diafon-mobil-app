@@ -4,6 +4,7 @@ import PushKit
 import CallKit
 import AVFoundation
 import flutter_callkit_incoming
+import WebRTC
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate, PKPushRegistryDelegate, CallkitIncomingAppDelegate {
@@ -14,6 +15,9 @@ import flutter_callkit_incoming
     let voipRegistry = PKPushRegistry(queue: DispatchQueue.main)
     voipRegistry.delegate = self
     voipRegistry.desiredPushTypes = [PKPushType.voIP]
+    // WebRTC + CallKit ses icin manuel audio session
+    RTCAudioSession.sharedInstance().useManualAudio = true
+    RTCAudioSession.sharedInstance().isAudioEnabled = false
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
@@ -56,7 +60,7 @@ import flutter_callkit_incoming
     completion()
   }
 
-  // MARK: - CallkitIncomingAppDelegate (7 metod)
+  // MARK: - CallkitIncomingAppDelegate
   func onAccept(_ call: Call, _ action: CXAnswerCallAction) {
     action.fulfill()
   }
@@ -73,9 +77,14 @@ import flutter_callkit_incoming
   }
 
   func didActivateAudioSession(_ audioSession: AVAudioSession) {
+    // WebRTC audio session devralsin - SES BURADAN GELIYOR
+    RTCAudioSession.sharedInstance().audioSessionDidActivate(audioSession)
+    RTCAudioSession.sharedInstance().isAudioEnabled = true
   }
 
   func didDeactivateAudioSession(_ audioSession: AVAudioSession) {
+    RTCAudioSession.sharedInstance().audioSessionDidDeactivate(audioSession)
+    RTCAudioSession.sharedInstance().isAudioEnabled = false
   }
 
   func providerDidReset() {
