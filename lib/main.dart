@@ -809,7 +809,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   void _listenCallKit() {
-    _callkitSub = FlutterCallkitIncoming.onEvent.listen((event) {
+    _callkitSub = FlutterCallkitIncoming.onEvent.listen((event) async {
       if (event == null) return;
       if (event is CallEventActionCallAccept) {
         final extra = event.callKitParams.extra ?? {};
@@ -818,7 +818,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         final callerUserId = (extra['callerUserId'] ?? '').toString();
         final callerName = (extra['callerName'] ?? 'Bilinmeyen').toString();
         final buildingId = (extra['buildingId'] ?? '').toString();
-        FlutterCallkitIncoming.endCall(callKitId);
+        // Uygulama oluyken acilirsa ana ekran hazir olana kadar bekle
+        int bekleAccept = 0;
+        while (!mounted && bekleAccept < 8000) {
+          await Future.delayed(const Duration(milliseconds: 200));
+          bekleAccept += 200;
+        }
+        // endCall CAGIRMA: CallKit cagriyi aktif tutsun ki iOS uygulamayi on plana getirsin
         if (mounted) {
           Navigator.push(
             context,
