@@ -816,19 +816,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _checkPendingAcceptedCall() async {
     try {
       final calls = await FlutterCallkitIncoming.activeCalls();
-      debugPrint('PENDING RAW: $calls');
       if (calls is! List || calls.isEmpty) return;
 
       final p = calls.first as CallKitParams;
       final extra = p.extra ?? {};
-      debugPrint('PENDING EXTRA: $extra');
 
       final callId = (extra['callId'] ?? '').toString();
       final callerUserId = (extra['callerUserId'] ?? '').toString();
       final callerName = (extra['callerName'] ?? 'Bilinmeyen').toString();
       final buildingId = (extra['buildingId'] ?? '').toString();
       if (callId.isEmpty) {
-        debugPrint('PENDING: callId bos');
         return;
       }
 
@@ -838,7 +835,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         bekle += 200;
       }
       if (!mounted) return;
-      debugPrint('PENDING: CallScreen aciliyor callId=$callId');
 
       if (Platform.isAndroid) {
         await FlutterCallkitIncoming.endCall(p.id ?? '');
@@ -857,7 +853,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
       );
     } catch (e, s) {
-      debugPrint('PENDING HATA: $e\n$s');
     }
   }
   void _listenCallKit() {
