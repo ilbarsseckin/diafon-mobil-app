@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:diafon_mobil_app/vehicle_activate_screen.dart';
 import 'package:diafon_mobil_app/vehicle_contact_screen.dart';
 import 'package:diafon_mobil_app/vehicles_screen.dart';
@@ -694,6 +696,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _initSocket();
     _loadNearby();
     _listenCallKit();
+    _checkPendingAcceptedCall();   // <-- yeni
     _checkDeletionStatus();
     _checkSubscription();
     _checkDnd();
@@ -786,7 +789,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         print('AKTIF CAGRI: callId=$callId callerUserId=$callerUserId');
 
         if (callId.isNotEmpty && callerUserId.isNotEmpty && mounted) {
-          await FlutterCallkitIncoming.endCall(callKitId);
+          if (Platform.isAndroid) {
+            await FlutterCallkitIncoming.endCall(callKitId);
+          }
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -807,7 +812,54 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       print('CHECK ACTIVE CALL HATA: $e');
     }
   }
+// Uygulama olduruldugunde kabul edilen cagri: event kaybolur, acilista sorulur
+  Future<void> _checkPendingAcceptedCall() async {
+    try {
+      final calls = await FlutterCallkitIncoming.activeCalls();
+      debugPrint('PENDING RAW: $calls');
+      if (calls is! List || calls.isEmpty) return;
 
+      final p = calls.first as CallKitParams;
+      final extra = p.extra ?? {};
+      debugPrint('PENDING EXTRA: $extra');
+
+      final callId = (extra['callId'] ?? '').toString();
+      final callerUserId = (extra['callerUserId'] ?? '').toString();
+      final callerName = (extra['callerName'] ?? 'Bilinmeyen').toString();
+      final buildingId = (extra['buildingId'] ?? '').toString();
+      if (callId.isEmpty) {
+        debugPrint('PENDING: callId bos');
+        return;
+      }
+
+      int bekle = 0;
+      while (!mounted && bekle < 8000) {
+        await Future.delayed(const Duration(milliseconds: 200));
+        bekle += 200;
+      }
+      if (!mounted) return;
+      debugPrint('PENDING: CallScreen aciliyor callId=$callId');
+
+      if (Platform.isAndroid) {
+        await FlutterCallkitIncoming.endCall(p.id ?? '');
+      }
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CallScreen(
+            peerUserId: callerUserId,
+            peerName: callerName,
+            isCaller: false,
+            incomingCallId: callId,
+            buildingId: buildingId.isNotEmpty ? buildingId : null,
+          ),
+        ),
+      );
+    } catch (e, s) {
+      debugPrint('PENDING HATA: $e\n$s');
+    }
+  }
   void _listenCallKit() {
     _callkitSub = FlutterCallkitIncoming.onEvent.listen((event) async {
       if (event == null) return;
