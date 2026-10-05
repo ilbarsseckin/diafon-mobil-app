@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'api_service.dart';
-
+import 'door_view_screen.dart';
 class CreateStructureScreen extends StatefulWidget {
   /// 'villa' | 'apartment' | 'site' | 'business'
   /// (eski 'residential' de site olarak kabul edilir)

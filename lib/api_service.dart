@@ -10,6 +10,19 @@ class ApiService {
 
 
 
+// Kapıyı akıllı diafon monitörü açar: POST /calls/door-open { apartmentId }
+static Future<Map<String, dynamic>> openDoorViaMonitor(String apartmentId) async {
+  final token = await getToken();
+  final res = await http.post(
+    Uri.parse('$baseUrl/calls/door-open'),
+    headers: {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    },
+    body: jsonEncode({'apartmentId': apartmentId}),
+  );
+  return _handle(res);
+}
 
   static Future<Map<String, dynamic>> register(String name, String phone) async {
     final res = await http.post(
@@ -46,11 +59,31 @@ class ApiService {
     return data;
   }
 
-  static Future<String?> getToken() => storage.read(key: 'token');
+  static Future<String?> getToken() async {
+    final t = await storage.read(key: 'token');
+    await _syncNfcToken(t);
+    return t;
+  }
+
+  // NFC bina etiketi (android NfcDoorActivity) Flutter acilmadan calisir ve secure storage'i
+  // okuyamaz; giris token'inin kopyasini uygulamaya ozel SharedPreferences'ta tutar.
+  static String? _nfcTokenCache;
+  static Future<void> _syncNfcToken(String? t) async {
+    if (t == _nfcTokenCache) return;
+    _nfcTokenCache = t;
+    final prefs = await SharedPreferences.getInstance();
+    if (t == null) {
+      await prefs.remove('nfc_auth_token');
+    } else {
+      await prefs.setString('nfc_auth_token', t);
+    }
+  }
+
   static Future<String?> getUserName() => storage.read(key: 'userName');
   static Future<void> logout() async {
     final shown = await storage.read(key: 'action_screen_shown');
     await storage.deleteAll();
+    await _syncNfcToken(null);
     if (shown == '1') {
       await storage.write(key: 'action_screen_shown', value: '1');
     }
@@ -314,6 +347,41 @@ class ApiService {
     );
     return _handle(res);
   }
+  // --- NFC bina etiketleri (yalnizca bina sahibi) ---
+  static Future<List<dynamic>> getNfcTags(String buildingId) async {
+    final token = await getToken();
+    final res = await http.get(
+      Uri.parse('$baseUrl/calls/nfc-tags/$buildingId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final body = _handle(res);
+    if (body['success'] == false) throw Exception(body['message'] ?? 'Etiketler alınamadı');
+    return (body['tags'] as List?) ?? [];
+  }
+
+  static Future<Map<String, dynamic>> createNfcTag(String buildingId, String label) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/calls/nfc-tags'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      body: jsonEncode({'buildingId': buildingId, 'label': label}),
+    );
+    final body = _handle(res);
+    if (body['success'] == false) throw Exception(body['message'] ?? 'Etiket oluşturulamadı');
+    return body;
+  }
+
+  static Future<void> deleteNfcTag(String tag) async {
+    final token = await getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/calls/nfc-tags/delete'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      body: jsonEncode({'tag': tag}),
+    );
+    final body = _handle(res);
+    if (body['success'] == false) throw Exception(body['message'] ?? 'Etiket silinemedi');
+  }
+
 // --- Binanın kapıları ---
   static Future<List<dynamic>> getDoors(String buildingId) async {
     final token = await getToken();

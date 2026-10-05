@@ -16,6 +16,9 @@
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- NFC anahtar etiketi ile kapı açma (NfcDoorActivity). NFC'siz telefonlara da yüklenebilir. -->
+    <uses-permission android:name="android.permission.NFC"/>
+    <uses-feature android:name="android.hardware.nfc" android:required="false"/>
     <application
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
@@ -46,6 +49,38 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+        </activity>
+
+        <!-- NFC anahtar etiketi: mobildiafon.com/web/nfc.html#k=... -> ekransız kapı açma.
+             Tarayıcı yerine bu Activity yakalar; arayüz açılmaz, Toast + titreşimle biter. -->
+        <activity
+            android:name=".NfcDoorActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:launchMode="singleTask"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data
+                    android:scheme="https"
+                    android:host="mobildiafon.com"
+                    android:pathPrefix="/web/nfc.html" />
+            </intent-filter>
+            <!-- Android 14+ https etiketlerini NDEF yerine VIEW olarak gönderir (Chrome'a gider).
+                 App Links ile bu adres uygulamaya açılır. Doğrulama:
+                 https://mobildiafon.com/.well-known/assetlinks.json (paket + imza SHA-256). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="mobildiafon.com"
+                    android:pathPrefix="/web/nfc.html" />
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

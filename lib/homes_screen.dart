@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'api_service.dart';
 import 'building_map_screen.dart';
 import 'call_screen.dart';
-
+import 'door_view_screen.dart';
 class HomesScreen extends StatefulWidget {
   const HomesScreen({super.key});
 
@@ -315,7 +315,33 @@ class _HomesScreenState extends State<HomesScreen> {
                 ),
               ),
             ),
-          ],
+          ],// Canlı kapı görüntüsü (akıllı diafon)
+            if (h['apartmentId'] != null) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => DoorViewScreen(
+                        apartmentId: h['apartmentId'].toString(),
+                        title: _homeTitle(h),
+                      ),
+                    ),
+                  ),
+                  icon: const Icon(Icons.videocam, size: 22),
+                  label: const Text('Kapıyı Görüntüle',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF1B2A4A),
+                    side: const BorderSide(color: Color(0xFF1B2A4A)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ],
           const SizedBox(height: 20),
 
           // Evim (kendi dairesindeki sakinler)

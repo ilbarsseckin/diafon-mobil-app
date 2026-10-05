@@ -7,8 +7,21 @@ import android.content.Context
 import android.content.Intent
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.engine.FlutterEngine
 
 class MainActivity : FlutterActivity() {
+    private var nfcWriter: NfcWriter? = null
+
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+        nfcWriter = NfcWriter(this, flutterEngine.dartExecutor.binaryMessenger)
+    }
+
+    override fun onPause() {
+        nfcWriter?.onPause()
+        super.onPause()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         showOverLockscreen()

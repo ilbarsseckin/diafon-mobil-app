@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'api_service.dart';
+import 'nfc_tags_screen.dart';
 
 /// Yönetici: binalarındaki akıllı kapıları listeler, röle süresini değiştirir, siler.
 ///
@@ -317,6 +318,27 @@ class _DoorManagementScreenState extends State<DoorManagementScreen> {
                           ),
                         );
                       }),
+                    // NFC kapı etiketleri (yalnızca bina sahibi; sunucu da kontrol eder)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => NfcTagsScreen(buildingId: bid, buildingName: name),
+                            ),
+                          ),
+                          icon: const Icon(Icons.nfc, color: _red),
+                          label: const Text('NFC Etiketleri', style: TextStyle(color: _red)),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: _red),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ),
                     // Tuya manuel ekleme - simdilik gizli (_tuyaEnabled)
                     if (_tuyaEnabled)
                       Padding(

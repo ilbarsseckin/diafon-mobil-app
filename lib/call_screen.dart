@@ -12,7 +12,6 @@ class CallScreen extends StatefulWidget {
   final String? incomingCallId;
   final String callType; // 'user' (varsayilan) veya 'security'
   final String? buildingId; // kapi acma icin (opsiyonel)
-
   const CallScreen({
     super.key,
     required this.peerUserId,
@@ -30,6 +29,13 @@ class _CallScreenState extends State<CallScreen> {
   final _localRenderer = RTCVideoRenderer();
   final _remoteRenderer = RTCVideoRenderer();
 
+  // QR cift-kamera: kapi paneli goruntusu (ikinci "view" akisi, box'tan gelir)
+  final _viewRenderer = RTCVideoRenderer();
+  RTCPeerConnection? _viewPc;
+  String? _viewMonitorUserId;
+  bool _viewConnected = false;
+  bool _viewIsMain = false; // true: kapi paneli buyuk, ziyaretci kucuk kare
+
   RTCPeerConnection? _pc;
   MediaStream? _localStream;
   String? _callId;
@@ -41,6 +47,7 @@ class _CallScreenState extends State<CallScreen> {
   bool _micOn = true;
   bool _camOn = true;
   bool _frontCamera = true;
+  bool _hasCamera = true;
 
   Timer? _timer;
   int _seconds = 0;
@@ -68,16 +75,30 @@ class _CallScreenState extends State<CallScreen> {
     _callId = widget.incomingCallId;
     _init();
   }
-
+  Future<MediaStream?> _getLocalStreamSafe() async {
+    // Kamera+mikrofon dene; kamerasız cihazda sadece ses; mikrofon da yoksa medyasız devam.
+    try {
+      return await navigator.mediaDevices.getUserMedia({
+        'audio': true,
+        'video': {'facingMode': 'user'},
+      });
+    } catch (_) {
+      try {
+        return await navigator.mediaDevices.getUserMedia({'audio': true, 'video': false});
+      } catch (_) {
+        return null;
+      }
+    }
+  }
   Future<void> _init() async {
     await _localRenderer.initialize();
     await _remoteRenderer.initialize();
+    await _viewRenderer.initialize();
 
-    _localStream = await navigator.mediaDevices.getUserMedia({
-      'audio': true,
-      'video': {'facingMode': 'user'},
-    });
+    _localStream = await _getLocalStreamSafe();
     _localRenderer.srcObject = _localStream;
+    _hasCamera = (_localStream?.getVideoTracks().isNotEmpty ?? false);
+    if (!_hasCamera) _camOn = false;
 
     try {
       await Helper.setSpeakerphoneOn(true);
@@ -88,20 +109,18 @@ class _CallScreenState extends State<CallScreen> {
     // Alıcı: görüntü tercihine bak
     if (!widget.isCaller) {
       final showVideo = await ApiService.getVideoEnabled();
-      if (!showVideo) {
-        final videoTrack = _localStream?.getVideoTracks().first;
-        if (videoTrack != null) {
-          videoTrack.enabled = false;
-          _camOn = false;
-        }
+      if (!showVideo && (_localStream?.getVideoTracks().isNotEmpty ?? false)) {
+        _localStream!.getVideoTracks().first.enabled = false;
+        _camOn = false;
       }
     }
 
-    _pc = await createPeerConnection(_iceConfig);
-    _localStream!.getTracks().forEach((track) {
-      _pc!.addTrack(track, _localStream!);
-    });
-
+     _pc = await createPeerConnection(_iceConfig);
+     if (_localStream != null) {
+       _localStream!.getTracks().forEach((track) {
+         _pc!.addTrack(track, _localStream!);
+       });
+     }
     _pc!.onTrack = (event) {
       if (event.streams.isNotEmpty) {
         _remoteRenderer.srcObject = event.streams[0];
@@ -208,6 +227,11 @@ class _CallScreenState extends State<CallScreen> {
 
     // SADECE ALICI: offer geldi -> answer yap
     SocketService.on('webrtc:offer', (data) async {
+      // QR cift-kamera: kapi paneli "view" akisi -> ayri PC, ana cagriya dokunma
+      if (data is Map && data['callId'] == 'view') {
+        await _handleViewOffer(data);
+        return;
+      }
       if (widget.isCaller) return; // arayan answer yapmaz
       if (_pc == null) return;
       await _pc!.setRemoteDescription(
@@ -225,6 +249,7 @@ class _CallScreenState extends State<CallScreen> {
 
     // SADECE ARAYAN: answer geldi -> remote set
     SocketService.on('webrtc:answer', (data) async {
+      if (data is Map && data['callId'] == 'view') return; // view'da sakin cevaplayan taraf, answer almaz
       if (!widget.isCaller) return; // alıcı answer almaz
       if (_pc == null) return;
       await _pc!.setRemoteDescription(
@@ -234,6 +259,15 @@ class _CallScreenState extends State<CallScreen> {
     });
 
     SocketService.on('webrtc:ice', (data) async {
+      // QR cift-kamera: "view" ICE -> view PC'ye
+      if (data is Map && data['callId'] == 'view') {
+        if (_viewPc == null) return;
+        final vc = data['candidate'];
+        try {
+          await _viewPc!.addCandidate(RTCIceCandidate(vc['candidate'], vc['sdpMid'], vc['sdpMLineIndex']));
+        } catch (_) {}
+        return;
+      }
       if (_pc == null) return;
       final c = data['candidate'];
       try {
@@ -244,6 +278,14 @@ class _CallScreenState extends State<CallScreen> {
         // remote henüz set edilmemişse ICE eklenemez, sessizce geç
       }
     });
+
+    // QR cift-kamera: box hedef bilgisi (view offer'a kime answer donecegimiz) + durdurma
+    SocketService.on('door:view-target', (data) {
+      if (data is Map && data['monitorUserId'] != null) {
+        _viewMonitorUserId = data['monitorUserId'].toString();
+      }
+    });
+    SocketService.on('door:view-stop', (_) => _teardownView());
 
     // --- Gorusme suresi olaylari ---
     SocketService.on('call:limit', (data) {
@@ -314,28 +356,78 @@ class _CallScreenState extends State<CallScreen> {
     });
   }
 
+  // ---- QR cift-kamera: kapi paneli "view" akisi ----
+  Future<void> _setupViewPc() async {
+    _viewPc = await createPeerConnection(_iceConfig);
+    // Sadece video ALIYORUZ; local track eklemiyoruz (recvonly).
+    _viewPc!.onTrack = (event) {
+      if (event.streams.isNotEmpty) {
+        _viewRenderer.srcObject = event.streams[0];
+        if (mounted) setState(() => _viewConnected = true);
+      }
+    };
+    _viewPc!.onIceCandidate = (c) {
+      if (_viewMonitorUserId != null) {
+        SocketService.emit('webrtc:ice', {
+          'toUserId': _viewMonitorUserId, 'callId': 'view', 'candidate': c.toMap(),
+        });
+      }
+    };
+  }
+
+  Future<void> _handleViewOffer(Map data) async {
+    try {
+      if (_viewPc == null) await _setupViewPc();
+      await _viewPc!.setRemoteDescription(
+        RTCSessionDescription(data['sdp']['sdp'], data['sdp']['type']),
+      );
+      final answer = await _viewPc!.createAnswer();
+      await _viewPc!.setLocalDescription(answer);
+      SocketService.emit('webrtc:answer', {
+        'toUserId': _viewMonitorUserId,
+        'callId': 'view',
+        'sdp': {'sdp': answer.sdp, 'type': answer.type},
+      });
+    } catch (_) {}
+  }
+
+  // Buyuk ekran ile kucuk kare arasinda AKISI takas et (renderer'lari yerinde birak).
+  void _swapViews() {
+    final tmp = _remoteRenderer.srcObject;
+    _remoteRenderer.srcObject = _viewRenderer.srcObject;
+    _viewRenderer.srcObject = tmp;
+    setState(() => _viewIsMain = !_viewIsMain);
+  }
+
+  void _teardownView() {
+    try { _viewPc?.close(); } catch (_) {}
+    _viewPc = null;
+    try { _viewRenderer.srcObject = null; } catch (_) {}
+    if (mounted) setState(() => _viewConnected = false);
+  }
+
   void _toggleMic() {
-    final audioTrack = _localStream?.getAudioTracks().first;
-    if (audioTrack != null) {
+    final tracks = _localStream?.getAudioTracks() ?? [];
+    if (tracks.isNotEmpty) {
       _micOn = !_micOn;
-      audioTrack.enabled = _micOn;
+      tracks.first.enabled = _micOn;
       setState(() {});
     }
   }
 
   void _toggleCam() {
-    final videoTrack = _localStream?.getVideoTracks().first;
-    if (videoTrack != null) {
+    final tracks = _localStream?.getVideoTracks() ?? [];
+    if (tracks.isNotEmpty) {
       _camOn = !_camOn;
-      videoTrack.enabled = _camOn;
+      tracks.first.enabled = _camOn;
       setState(() {});
     }
   }
 
   void _switchCamera() async {
-    final videoTrack = _localStream?.getVideoTracks().first;
-    if (videoTrack != null) {
-      await Helper.switchCamera(videoTrack);
+    final tracks = _localStream?.getVideoTracks() ?? [];
+    if (tracks.isNotEmpty) {
+      await Helper.switchCamera(tracks.first);
       setState(() => _frontCamera = !_frontCamera);
     }
   }
@@ -346,10 +438,10 @@ class _CallScreenState extends State<CallScreen> {
       final doors = await ApiService.getDoors(widget.buildingId!);
       if (!mounted) return;
       if (doors.isEmpty) {
+        // DiafonBox binasi: door adapter kaydi yok -> kutu rolesini socket ile ac.
+        SocketService.emit('call:door-open', {'buildingId': widget.buildingId, 'callId': _callId});
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Bu binada kapı açma aktif değil'),
-          backgroundColor: Colors.orange,
-        ));
+          content: Text('Kapı açıldı ✓'), backgroundColor: Colors.green));
         return;
       }
       String doorId;
@@ -418,11 +510,15 @@ class _CallScreenState extends State<CallScreen> {
     SocketService.off('call:extended');
     SocketService.off('call:extend-denied');
     SocketService.off('call:timeout');
+    SocketService.off('door:view-target');
+    SocketService.off('door:view-stop');
     _localStream?.getTracks().forEach((t) => t.stop());
     _localStream?.dispose();
     _pc?.close();
+    try { _viewPc?.close(); } catch (_) {}
     _localRenderer.dispose();
     _remoteRenderer.dispose();
+    try { _viewRenderer.dispose(); } catch (_) {}
   }
 
   @override
@@ -532,6 +628,40 @@ class _CallScreenState extends State<CallScreen> {
                 ),
               ),
             ),
+            // QR cift-kamera: ikinci kucuk kare (ana ekrandakinin TERSI). Tikla -> yer degistir.
+            if (_viewConnected)
+              Positioned(
+                top: (_connected ? 70 : 16) + 158, right: 16,
+                width: 110, height: 150,
+                child: GestureDetector(
+                  onTap: _swapViews,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: RTCVideoView(_viewRenderer,
+                              objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover),
+                        ),
+                        Positioned(
+                          bottom: 0, left: 0, right: 0,
+                          child: Container(
+                            color: Colors.black54,
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            child: Text(_viewIsMain ? 'Ziyaretçi' : 'Kapı',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(color: Colors.white, fontSize: 11)),
+                          ),
+                        ),
+                        const Positioned(
+                          top: 4, right: 4,
+                          child: Icon(Icons.swap_horiz, color: Colors.white70, size: 16),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             // Sureyi uzat (sadece aranan taraf, son 15 sn)
             if (uzatmaGoster)
               Positioned(

@@ -30,6 +30,9 @@ import 'call_history_screen.dart';
 import 'nearby_screen.dart';
 import 'background_service.dart';
 import 'permissions_screen.dart';
+import 'sip/sip_service.dart';
+import 'sip/sip_incoming_screen.dart';
+import 'package:sip_ua/sip_ua.dart';
 // Arka planda/kapalıyken gelen FCM mesajını yakalar
 @pragma('vm:entry-point')
 Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
@@ -71,7 +74,10 @@ void main() async {
   } catch (e) {
     print('FG SERVICE HATA: $e');   // patlarsa uygulama yine açılsın
   }
+    _startSipTest();              // ← SIP'i başlat (test)
+
   runApp(const DiafonApp());
+
 }
 class DiafonApp extends StatelessWidget {
   const DiafonApp({super.key});
@@ -79,6 +85,7 @@ class DiafonApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: appNavigatorKey,   // ← ekle
       title: 'Diafon',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -91,8 +98,28 @@ class DiafonApp extends StatelessWidget {
       },
     );
   }
+
+}
+final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
+
+class _SipHandler implements SipEvents {
+  @override void onSipRegistered(bool ok) => debugPrint('SIP kayit: $ok');
+  @override void onSipIncoming(Call call, String caller) {
+    appNavigatorKey.currentState?.push(MaterialPageRoute(
+      builder: (_) => SipIncomingScreen(call: call, caller: caller)));
+  }
+  @override void onSipEnded(String reason) => debugPrint('SIP bitti: $reason');
 }
 
+void _startSipTest() {
+  SipService.instance.setEvents(_SipHandler());
+  SipService.instance.start(const SipConfig(
+    wssUrl: 'wss://128.140.127.151:8089/ws',
+    domain: 'mobildiafon.com',
+    username: 'd10',
+    password: 'D10_g7Qz!v29Xr',
+  ));
+}
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
