@@ -1,3 +1,4 @@
+import 'feature_flags.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -229,7 +230,7 @@ class _CallScreenState extends State<CallScreen> {
     SocketService.on('webrtc:offer', (data) async {
       // QR cift-kamera: kapi paneli "view" akisi -> ayri PC, ana cagriya dokunma
       if (data is Map && data['callId'] == 'view') {
-        await _handleViewOffer(data);
+        if (kDualCameraEnabled) await _handleViewOffer(data);
         return;
       }
       if (widget.isCaller) return; // arayan answer yapmaz
@@ -629,7 +630,7 @@ class _CallScreenState extends State<CallScreen> {
               ),
             ),
             // QR cift-kamera: ikinci kucuk kare (ana ekrandakinin TERSI). Tikla -> yer degistir.
-            if (_viewConnected)
+            if (kDualCameraEnabled && _viewConnected)
               Positioned(
                 top: (_connected ? 70 : 16) + 158, right: 16,
                 width: 110, height: 150,

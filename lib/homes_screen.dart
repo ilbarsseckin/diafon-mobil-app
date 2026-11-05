@@ -6,6 +6,7 @@ import 'api_service.dart';
 import 'building_map_screen.dart';
 import 'call_screen.dart';
 import 'door_view_screen.dart';
+import 'feature_flags.dart';
 class HomesScreen extends StatefulWidget {
   const HomesScreen({super.key});
 
@@ -316,7 +317,7 @@ class _HomesScreenState extends State<HomesScreen> {
               ),
             ),
           ],// Canlı kapı görüntüsü (akıllı diafon)
-            if (h['apartmentId'] != null) ...[
+            if (kDoorViewEnabled && h['apartmentId'] != null) ...[
               const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,

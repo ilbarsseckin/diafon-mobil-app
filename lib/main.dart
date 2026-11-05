@@ -31,6 +31,7 @@ import 'nearby_screen.dart';
 import 'background_service.dart';
 import 'permissions_screen.dart';
 import 'sip/sip_service.dart';
+import 'feature_flags.dart';
 import 'sip/sip_incoming_screen.dart';
 import 'package:sip_ua/sip_ua.dart';
 // Arka planda/kapalıyken gelen FCM mesajını yakalar
@@ -74,7 +75,7 @@ void main() async {
   } catch (e) {
     print('FG SERVICE HATA: $e');   // patlarsa uygulama yine açılsın
   }
-    _startSipTest();              // ← SIP'i başlat (test)
+    if (kSipEnabled) _startSipTest(); // SIP şimdilik kapalı (feature_flags.dart)
 
   runApp(const DiafonApp());
 
