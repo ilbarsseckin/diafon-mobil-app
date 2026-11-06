@@ -1,5 +1,6 @@
 # iOS TestFlight (Codemagic yerine GitHub Actions)
-# Elle tetiklenir: GitHub > Actions > iOS TestFlight > Run workflow
+# Tetikleme: GitHub > Actions > iOS TestFlight > Run workflow
+# veya ios-* etiketi pushlayarak
 #
 # Gerekli repo secret'ları (Settings > Secrets and variables > Actions):
 #   ASC_KEY_ID      App Store Connect API anahtar ID'si
@@ -11,6 +12,9 @@ name: iOS TestFlight
 
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - "ios-*"   # örn: git tag ios-1.1.2-79 && git push origin ios-1.1.2-79
 
 jobs:
   ios:
