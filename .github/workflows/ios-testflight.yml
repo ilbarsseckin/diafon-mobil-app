@@ -1,12 +1,12 @@
 # iOS TestFlight (Codemagic yerine GitHub Actions)
 # Tetikleme: GitHub > Actions > iOS TestFlight > Run workflow
-# veya ios-* etiketi pushlayarak
+# veya ios-* etiketi pushlayarak (örn: git tag ios-1.1.2-80 && git push origin ios-1.1.2-80)
 #
-# Gerekli repo secret'ları (Settings > Secrets and variables > Actions):
-#   ASC_KEY_ID      App Store Connect API anahtar ID'si
-#   ASC_ISSUER_ID   App Store Connect Issuer ID
-#   ASC_KEY_P8      .p8 dosyasının tüm içeriği (BEGIN/END satırları dahil)
-# Anahtar rolü "Admin" olmalı (otomatik imza sertifika/profil oluşturabilsin).
+# Repo secret'ları (Settings > Secrets and variables > Actions):
+#   ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8   App Store Connect API anahtarı (yükleme için)
+#   IOS_P12_BASE64      Apple Distribution sertifikası + özel anahtar (.p12, base64)
+#   IOS_P12_PASSWORD    .p12 şifresi
+#   IOS_PROFILE_BASE64  "MobilDiafon GitHub AppStore" profili (.mobileprovision, base64)
 
 name: iOS TestFlight
 
@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
   push:
     tags:
-      - "ios-*"   # örn: git tag ios-1.1.2-79 && git push origin ios-1.1.2-79
+      - "ios-*"
 
 jobs:
   ios:
@@ -32,44 +32,64 @@ jobs:
           channel: stable
           cache: true
 
-      - name: App Store Connect anahtarını yaz
+      - name: İmza sertifikası ve profil
         env:
+          IOS_P12_BASE64: ${{ secrets.IOS_P12_BASE64 }}
+          IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
+          IOS_PROFILE_BASE64: ${{ secrets.IOS_PROFILE_BASE64 }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
         run: |
+          set -euo pipefail
+          KC="$RUNNER_TEMP/build.keychain-db"
+          KC_PW="$(uuidgen)"
+          echo "$IOS_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/dist.p12"
+          security create-keychain -p "$KC_PW" "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security unlock-keychain -p "$KC_PW" "$KC"
+          security import "$RUNNER_TEMP/dist.p12" -P "$IOS_P12_PASSWORD" -A -t cert -f pkcs12 -k "$KC"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KC_PW" "$KC" >/dev/null
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          security find-identity -v -p codesigning "$KC"
+
+          PP_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PP_DIR"
+          echo "$IOS_PROFILE_BASE64" | base64 --decode > "$RUNNER_TEMP/app.mobileprovision"
+          UUID=$(security cms -D -i "$RUNNER_TEMP/app.mobileprovision" | plutil -extract UUID raw -)
+          cp "$RUNNER_TEMP/app.mobileprovision" "$PP_DIR/$UUID.mobileprovision"
+          echo "Profil: $UUID"
+
           mkdir -p "$RUNNER_TEMP/keys"
           printf '%s' "$ASC_KEY_P8" > "$RUNNER_TEMP/keys/AuthKey_${ASC_KEY_ID}.p8"
 
       - name: Flutter paketleri ve CocoaPods
         run: |
+          set -euo pipefail
           flutter pub get
           flutter build ios --release --config-only --no-codesign
           cd ios && pod install --repo-update
 
       - name: Arşiv (imzalı)
-        env:
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
-          set -o pipefail
+          set -euo pipefail
           xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner \
             -configuration Release -destination 'generic/platform=iOS' \
-            -archivePath "$RUNNER_TEMP/Runner.xcarchive" archive \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey_${ASC_KEY_ID}.p8" \
-            -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID" 2>&1 | tail -80
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" archive 2>&1 | tail -80
 
       - name: TestFlight'a yükle
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
+          set -euo pipefail
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
             -exportOptionsPlist ios/ExportOptions.plist \
             -exportPath "$RUNNER_TEMP/export" \
-            -allowProvisioningUpdates \
             -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey_${ASC_KEY_ID}.p8" \
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+
+      - name: Keychain temizliği
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/build.keychain-db" || true
