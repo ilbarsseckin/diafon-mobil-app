@@ -39,7 +39,7 @@ jobs:
       - name: Flutter paketleri ve CocoaPods
         run: |
           flutter pub get
-          flutter build ios --release --config-only
+          flutter build ios --release --config-only --no-codesign
           cd ios && pod install --repo-update
 
       - name: Arşiv (imzalı)
