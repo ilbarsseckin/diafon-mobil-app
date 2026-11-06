@@ -50,8 +50,14 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
-            isMinifyEnabled = false
+            // R8 kod küçültme + karartma (Play DEX kodu optimizasyonu uyarısı).
+            // Kaynak küçültme kapalı: raw/ zil sesleri ve isimle çağrılan ikonlar silinmesin.
+            isMinifyEnabled = true
             isShrinkResources = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 }
